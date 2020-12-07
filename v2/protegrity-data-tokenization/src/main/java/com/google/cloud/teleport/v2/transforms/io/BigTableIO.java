@@ -48,6 +48,8 @@ public class BigTableIO {
         @ProcessElement
         public void processElement(@Element Row in, OutputReceiver<KV<ByteString, Iterable<Mutation>>> out, ProcessContext c) {
             ProtegrityDataTokenizationOptions options = c.getPipelineOptions().as(ProtegrityDataTokenizationOptions.class);
+            // Mapping every field in provided Row to Mutation.SetCell, which will create/update
+            // cell content with provided data
             Set<Mutation> mutations = schema.getFields().stream()
                     .map(Schema.Field::getName)
                     // Ignoring key field, otherwise it will be added as regular column
@@ -66,6 +68,7 @@ public class BigTableIO {
                                     .build()
                     )
                     .collect(Collectors.toSet());
+            // Converting key value to BigTable format
             ByteString key = ByteString.copyFrom(in.getString(options.getBigTableKeyColumnName()).getBytes());
             out.output(KV.of(key, mutations));
         }
