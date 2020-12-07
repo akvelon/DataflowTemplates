@@ -18,20 +18,16 @@ package com.google.cloud.teleport.v2.templates;
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
 
 import com.google.api.services.bigquery.model.TableSchema;
-import com.google.bigtable.v2.Mutation;
 import com.google.cloud.teleport.v2.coders.FailsafeElementCoder;
 import com.google.cloud.teleport.v2.options.ProtegrityDataTokenizationOptions;
 import com.google.cloud.teleport.v2.transforms.BigQueryConverters;
 import com.google.cloud.teleport.v2.transforms.ErrorConverters;
+import com.google.cloud.teleport.v2.transforms.io.BigTableOutput;
 import com.google.cloud.teleport.v2.utils.SchemaUtils;
 import com.google.cloud.teleport.v2.utils.SchemasUtils;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
-import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.coders.NullableCoder;
@@ -42,18 +38,12 @@ import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryInsertError;
 import org.apache.beam.sdk.io.gcp.bigquery.InsertRetryPolicy;
 import org.apache.beam.sdk.io.gcp.bigquery.WriteResult;
-import org.apache.beam.sdk.io.gcp.bigtable.BigtableIO;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.schemas.Schema;
-import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.JsonToRow;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PDone;
 import org.apache.beam.sdk.values.Row;
-import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,11 +123,8 @@ public class ProtegrityDataTokenization {
                                     .setErrorRecordsTableSchema(SchemaUtils.DEADLETTER_SCHEMA)
                                     .build());
         } else if (options.getBigTableInstanceId() != null) {
-            writeToBigTable(
+            new BigTableOutput(options).writeToBigTable(
                     rows.getResults(),
-                    options.getBigTableProjectId(),
-                    options.getBigTableInstanceId(),
-                    options.getBigTableTableId(),
                     schema.getBeamSchema()
             );
         } else {
@@ -184,52 +171,5 @@ public class ProtegrityDataTokenization {
             throw new RuntimeException(e);
         }
         return failsafeElement;
-    }
-    private static PDone writeToBigTable(
-            PCollection<Row> input,
-            String bigTableProjectId,
-            String bigTableInstanceId,
-            String bigTableTableId,
-            Schema schema
-    ) {
-        return input.apply("convertToBigTableFormat", ParDo.of(new TransformToBigTableFormat(schema)))
-                .apply("writeToBigTable", BigtableIO.write()
-                        .withProjectId(bigTableProjectId)
-                        .withInstanceId(bigTableInstanceId)
-                        .withTableId(bigTableTableId));
-    }
-
-    static class TransformToBigTableFormat extends DoFn<Row, KV<ByteString, Iterable<Mutation>>> {
-
-        private final Schema schema;
-
-        TransformToBigTableFormat(Schema schema) {
-            this.schema = schema;
-        }
-
-        @ProcessElement
-        public void processElement(@Element Row in, OutputReceiver<KV<ByteString, Iterable<Mutation>>> out, ProcessContext c) {
-            ProtegrityDataTokenizationOptions options = c.getPipelineOptions().as(ProtegrityDataTokenizationOptions.class);
-            Set<Mutation> mutations = schema.getFields().stream()
-                    .map(Schema.Field::getName)
-                    // Ignoring key field, otherwise it will be added as regular column
-                    .filter(fieldName -> !Objects.equals(fieldName, options.getBigTableKeyColumnName()))
-                    .map(fieldName -> Pair.of(fieldName, in.getString(fieldName)))
-                    .map(pair ->
-                            Mutation.newBuilder()
-                                    .setSetCell(
-                                            Mutation.SetCell.newBuilder()
-                                                    .setFamilyName(options.getBigTableColumnFamilyName())
-                                                    .setColumnQualifier(ByteString.copyFrom(pair.getKey().getBytes()))
-                                                    .setValue(ByteString.copyFrom(pair.getValue().getBytes()))
-                                                    .setTimestampMicros(System.currentTimeMillis() * 1000)
-                                                    .build()
-                                    )
-                                    .build()
-                    )
-                    .collect(Collectors.toSet());
-            ByteString key = ByteString.copyFrom(in.getString(options.getBigTableKeyColumnName()).getBytes());
-            out.output(KV.of(key, mutations));
-        }
     }
 }
