@@ -22,7 +22,7 @@ import com.google.cloud.teleport.v2.coders.FailsafeElementCoder;
 import com.google.cloud.teleport.v2.options.ProtegrityDataTokenizationOptions;
 import com.google.cloud.teleport.v2.transforms.BigQueryConverters;
 import com.google.cloud.teleport.v2.transforms.ErrorConverters;
-import com.google.cloud.teleport.v2.transforms.io.BigTableOutput;
+import com.google.cloud.teleport.v2.transforms.io.BigTableIO;
 import com.google.cloud.teleport.v2.utils.SchemaUtils;
 import com.google.cloud.teleport.v2.utils.SchemasUtils;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
@@ -123,7 +123,7 @@ public class ProtegrityDataTokenization {
                                     .setErrorRecordsTableSchema(SchemaUtils.DEADLETTER_SCHEMA)
                                     .build());
         } else if (options.getBigTableInstanceId() != null) {
-            new BigTableOutput(options).writeToBigTable(
+            new BigTableIO(options).write(
                     rows.getResults(),
                     schema.getBeamSchema()
             );

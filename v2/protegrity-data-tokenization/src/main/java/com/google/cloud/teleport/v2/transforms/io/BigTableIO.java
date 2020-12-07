@@ -17,16 +17,16 @@ import org.apache.beam.sdk.values.Row;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
- * The {@link BigTableOutput} class for writing data from template to BigTable.
+ * The {@link BigTableIO} class for writing data from template to BigTable.
  */
-public class BigTableOutput {
+public class BigTableIO {
     private final ProtegrityDataTokenizationOptions options;
 
-    public BigTableOutput(ProtegrityDataTokenizationOptions options) {
+    public BigTableIO(ProtegrityDataTokenizationOptions options) {
         this.options = options;
     }
 
-    public PDone writeToBigTable(
+    public PDone write(
             PCollection<Row> input,
             Schema schema
     ) {
