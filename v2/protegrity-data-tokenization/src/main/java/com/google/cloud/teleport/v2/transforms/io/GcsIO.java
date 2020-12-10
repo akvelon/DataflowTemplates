@@ -18,6 +18,7 @@ package com.google.cloud.teleport.v2.transforms.io;
 import com.google.cloud.teleport.v2.options.ProtegrityDataTokenizationOptions;
 import com.google.cloud.teleport.v2.transforms.CsvConverters;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
+import java.util.stream.Collectors;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.Default;
@@ -30,7 +31,6 @@ import org.apache.beam.sdk.values.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.stream.Collectors;
 
 /**
  * The {@link GcsIO} class to read/write data from/into Google Cloud Storage.
@@ -63,12 +63,12 @@ public class GcsIO {
     /** Necessary {@link PipelineOptions} options for Pipelines that operate with JSON/CSV data in GCS. */
     public interface GcsPipelineOptions extends PipelineOptions {
         @Description("GCS filepattern for files in bucket to read data from")
-        String getInputGcsFilePattern();
+        String getInputGcsPath();
 
         void setInputGcsFilePattern(String inputGcsFilePattern);
 
         @Description("GCS filepattern for files in bucket to write data to")
-        String getOutputGcsFilePattern();
+        String getOutputGcsPath();
 
         void setOutputGcsFilePattern(String outputGcsFilePattern);
 
@@ -76,7 +76,7 @@ public class GcsIO {
         @Default.Enum("JSON")
         GcsIO.FORMAT getInputGcsFileFormat();
 
-        void setInputGcsFileFormat(GcsIO.FORMAT outputGcsFileFormat);
+        void setInputGcsFileFormat(GcsIO.FORMAT inputGcsFileFormat);
 
         @Description("File format of output files. Supported formats: JSON, CSV")
         @Default.Enum("JSON")
@@ -117,7 +117,7 @@ public class GcsIO {
     public PCollection<String> read(Pipeline pipeline, String schema) {
         if (options.getInputGcsFileFormat() == FORMAT.JSON) {
             return pipeline
-                    .apply("ReadJsonFromGCSFiles", TextIO.read().from(options.getInputGcsFilePattern()));
+                    .apply("ReadJsonFromGCSFiles", TextIO.read().from(options.getInputGcsPath()));
         } else if (options.getInputGcsFileFormat() == FORMAT.CSV) {
             return pipeline
                     /*
@@ -129,7 +129,7 @@ public class GcsIO {
                                     .setCsvFormat(options.getCsvFormat())
                                     .setDelimiter(options.getCsvDelimiter())
                                     .setHasHeaders(options.getCsvContainsHeaders())
-                                    .setInputFileSpec(options.getInputGcsFilePattern())
+                                    .setInputFileSpec(options.getInputGcsPath())
                                     .setHeaderTag(CSV_HEADERS)
                                     .setLineTag(CSV_LINES)
                                     .build())
@@ -160,12 +160,12 @@ public class GcsIO {
 
     public PDone write(PCollection<Row> input, Schema schema) {
         if (options.getOutputGcsFileFormat() == FORMAT.JSON) {
-            return input.apply("Transform Rows to JSON", ToJson.of())
-                    .apply("Write to GCS", TextIO.write().to(options.getOutputGcsFilePattern()));
+            return input.apply("RowsToJSON", ToJson.of())
+                    .apply("WriteToGCS", TextIO.write().to(options.getOutputGcsPath()));
         } else if (options.getOutputGcsFileFormat() == FORMAT.CSV) {
             String header = String.join(options.getCsvDelimiter(), schema.getFieldNames());
             return input
-                    .apply("Convert to CSV", MapElements.into(TypeDescriptors.strings())
+                    .apply("ConvertToCSV", MapElements.into(TypeDescriptors.strings())
                             .via((Row inputRow) ->
                                     inputRow.getValues()
                                             .stream()
@@ -173,7 +173,7 @@ public class GcsIO {
                                             .collect(Collectors.joining(","))
                             )
                     )
-                    .apply("Write to GCS", TextIO.write().to(options.getOutputGcsFilePattern()).withHeader(header));
+                    .apply("WriteToGCS", TextIO.write().to(options.getOutputGcsPath()).withHeader(header));
 
         } else {
             throw new IllegalStateException("No valid format for output data is provided. Please, choose JSON or CSV.");

@@ -104,7 +104,7 @@ public class ProtegrityDataTokenization {
                 FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor(), FAILSAFE_ELEMENT_CODER);
 
         PCollection<String> jsons;
-        if (options.getInputGcsFilePattern() != null) {
+        if (options.getInputGcsPath() != null) {
             jsons = new GcsIO(options).read(pipeline, schema.getJsonBeamSchema());
         } else if (options.getPubsubTopic() != null) {
             jsons = pipeline
