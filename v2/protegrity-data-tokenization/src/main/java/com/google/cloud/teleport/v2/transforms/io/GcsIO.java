@@ -163,7 +163,7 @@ public class GcsIO {
             return input.apply("Transform Rows to JSON", ToJson.of())
                     .apply("Write to GCS", TextIO.write().to(options.getOutputGcsFilePattern()));
         } else if (options.getOutputGcsFileFormat() == FORMAT.CSV) {
-            String header = String.join(",", schema.getFieldNames());
+            String header = String.join(options.getCsvDelimiter(), schema.getFieldNames());
             return input
                     .apply("Convert to CSV", MapElements.into(TypeDescriptors.strings())
                             .via((Row inputRow) ->
