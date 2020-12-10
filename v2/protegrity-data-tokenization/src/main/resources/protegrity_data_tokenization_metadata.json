@@ -10,10 +10,17 @@
       "isOptional": true
     },
     {
-      "name": "inputGcsFilePattern",
-      "label": "GCS filepattern for input files",
-      "helpText": "GCS filepattern for files in bucket to read data from",
+      "name": "inputGcsPath",
+      "label": "GCS path for input files",
+      "helpText": "GCS path for files in bucket to read data from",
       "paramType": "GCS_READ_FILE",
+      "isOptional": true
+    },
+    {
+      "name": "outputGcsPath",
+      "label": "GCS path for input files",
+      "helpText": "GCS path for files in bucket to write data to",
+      "paramType": "GCS_WRITE_FILE",
       "isOptional": true
     },
     {

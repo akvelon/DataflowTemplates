@@ -65,12 +65,12 @@ public class GcsIO {
         @Description("GCS filepattern for files in bucket to read data from")
         String getInputGcsPath();
 
-        void setInputGcsFilePattern(String inputGcsFilePattern);
+        void setInputGcsPath(String inputGcsPath);
 
         @Description("GCS filepattern for files in bucket to write data to")
         String getOutputGcsPath();
 
-        void setOutputGcsFilePattern(String outputGcsFilePattern);
+        void setOutputGcsPath(String outputGcsPath);
 
         @Description("File format of input files. Supported formats: JSON, CSV")
         @Default.Enum("JSON")
