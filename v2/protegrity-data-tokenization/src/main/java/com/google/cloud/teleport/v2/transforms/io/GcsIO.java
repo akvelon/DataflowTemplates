@@ -23,12 +23,14 @@ import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.transforms.MapElements;
-import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.TupleTag;
-import org.apache.beam.sdk.values.TypeDescriptors;
+import org.apache.beam.sdk.transforms.ToJson;
+import org.apache.beam.sdk.values.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.stream.Collectors;
 
 /**
  * The {@link GcsIO} class to read/write data from/into Google Cloud Storage.
