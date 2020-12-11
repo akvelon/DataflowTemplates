@@ -116,7 +116,13 @@ public class ProtegrityDataTokenization {
         JsonToRow.ParseResult rows = jsons
                 .apply("JsonToRow", JsonToRow.withExceptionReporting(schema.getBeamSchema()).withExtendedErrorInfo());
 
-        if (options.getBigQueryTableName() != null) {
+        if (options.getOutputGcsPath() != null) {
+            new GcsIO(options).write(
+                    rows.getResults(),
+                    schema.getBeamSchema()
+            );
+        }
+        else if (options.getBigQueryTableName() != null) {
             WriteResult writeResult = write(rows.getResults(), options.getBigQueryTableName(), schema.getBigQuerySchema());
             writeResult
                     .getFailedInsertsWithErr()
@@ -137,7 +143,7 @@ public class ProtegrityDataTokenization {
                     schema.getBeamSchema()
             );
         } else {
-            throw new IllegalStateException("No sink is provided, please configure BigQuery or BigTable.");
+            throw new IllegalStateException("No sink is provided, please configure GCS, BigQuery or BigTable.");
         }
 
         return pipeline.run();
