@@ -116,7 +116,7 @@ public class ProtegrityDataTokenization {
         JsonToRow.ParseResult rows = jsons
                 .apply("JsonToRow", JsonToRow.withExceptionReporting(schema.getBeamSchema()).withExtendedErrorInfo());
 
-        if (options.getOutputGcsPath() != null) {
+        if (options.getOutputGcsDirectory() != null) {
             new GcsIO(options).write(
                     rows.getResults(),
                     schema.getBeamSchema()

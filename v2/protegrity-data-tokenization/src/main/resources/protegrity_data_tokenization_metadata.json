@@ -7,19 +7,19 @@
       "label": "GCS location of your data schema",
       "helpText": "Path to data schema (JSON format) in GCS compatible with BigQuery",
       "paramType": "GCS_READ_FILE",
-      "isOptional": true
+      "isOptional": false
     },
     {
-      "name": "inputGcsPath",
-      "label": "GCS path for input files",
-      "helpText": "GCS path for files in bucket to read data from",
+      "name": "inputGcsFilePattern",
+      "label": "GCS filepattern for input files",
+      "helpText": "GCS filepattern for files in bucket to read data from",
       "paramType": "GCS_READ_FILE",
       "isOptional": true
     },
     {
-      "name": "outputGcsPath",
-      "label": "GCS path for input files",
-      "helpText": "GCS path for files in bucket to write data to",
+      "name": "outputGcsDirectory",
+      "label": "GCS directory for input files",
+      "helpText": "GCS directory in bucket to write data to",
       "paramType": "GCS_WRITE_FILE",
       "isOptional": true
     },
