@@ -38,78 +38,78 @@ import org.slf4j.LoggerFactory;
  */
 public class DataStreamBigQueryMerger extends PTransform<PCollection<KV<TableId, TableRow>>, PCollection<Void>> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(DataStreamBigQueryMerger.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DataStreamBigQueryMerger.class);
 
-  private DataStreamClient dataStreamClient;
-  private String stagingDataset;
-  private String stagingTable;
-  private String replicaDataset;
-  private String replicaTable;
-  private Duration windowDuration;
-  private BigQuery bigQueryClient;
-  private MergeConfiguration mergeConfiguration;
+    private DataStreamClient dataStreamClient;
+    private String stagingDataset;
+    private String stagingTable;
+    private String replicaDataset;
+    private String replicaTable;
+    private Duration windowDuration;
+    private BigQuery bigQueryClient;
+    private MergeConfiguration mergeConfiguration;
 
-  public DataStreamBigQueryMerger(
-      GcpOptions options,
-      String stagingDataset, String stagingTable,
-      String replicaDataset, String replicaTable,
-      Duration windowDuration, BigQuery bigQueryClient, MergeConfiguration mergeConfiguration) {
-    this.stagingDataset = stagingDataset;
-    this.stagingTable = stagingTable;
+    public DataStreamBigQueryMerger(
+            GcpOptions options,
+            String stagingDataset, String stagingTable,
+            String replicaDataset, String replicaTable,
+            Duration windowDuration, BigQuery bigQueryClient, MergeConfiguration mergeConfiguration) {
+        this.stagingDataset = stagingDataset;
+        this.stagingTable = stagingTable;
 
-    this.replicaDataset = replicaDataset;
-    this.replicaTable = replicaTable;
+        this.replicaDataset = replicaDataset;
+        this.replicaTable = replicaTable;
 
-    this.windowDuration = windowDuration;
-    this.bigQueryClient = bigQueryClient;
-    this.mergeConfiguration = mergeConfiguration;
+        this.windowDuration = windowDuration;
+        this.bigQueryClient = bigQueryClient;
+        this.mergeConfiguration = mergeConfiguration;
 
-    try {
-        this.dataStreamClient = new DataStreamClient(options.getGcpCredential());
-    } catch (IOException e) {
-        LOG.error("IOException Occurred: DataStreamClient failed initialization.");
-        this.dataStreamClient = null;
-    }
-  }
-
-  public DataStreamBigQueryMerger withDataStreamRootUrl(String url) {
-    if (this.dataStreamClient != null) {
-      this.dataStreamClient.setRootUrl(url);
+        try {
+            this.dataStreamClient = new DataStreamClient(options.getGcpCredential());
+        } catch (IOException e) {
+            LOG.error("IOException Occurred: DataStreamClient failed initialization.");
+            this.dataStreamClient = null;
+        }
     }
 
-    return this;
-  }
+    public DataStreamBigQueryMerger withDataStreamRootUrl(String url) {
+        if (this.dataStreamClient != null) {
+            this.dataStreamClient.setRootUrl(url);
+        }
 
-  @Override
-  public PCollection<Void> expand(PCollection<KV<TableId, TableRow>> input) {
-    final MergeStatementBuilder mergeBuilder = new MergeStatementBuilder(mergeConfiguration);
+        return this;
+    }
 
-    // Group each batch of rows into a single table object for merge
-    PCollection<KV<TableId, TableRow>> groupedByTable = input
-        .apply(
-          MapElements.into(
-            TypeDescriptors.kvs(
-              TypeDescriptors.strings(),
-              TypeDescriptors.kvs(
-                TypeDescriptor.of(TableId.class),
-                TypeDescriptor.of(TableRow.class))))
-            .via(tableInfo -> KV.of(tableInfo.getKey().toString(), tableInfo)))
-        .apply(
-          new BigQueryMerger.TriggerPerKeyOnFixedIntervals<String, KV<TableId, TableRow>>(windowDuration))
-        .apply(Values.create());
+    @Override
+    public PCollection<Void> expand(PCollection<KV<TableId, TableRow>> input) {
+        final MergeStatementBuilder mergeBuilder = new MergeStatementBuilder(mergeConfiguration);
 
-    // Create MergeInfo objects using DataStream APIs
-    PCollection<MergeInfo> mergeInfoRecords =
-        groupedByTable.apply(
-            "Create MergeInfo Objects",
-            new MergeInfoMapper(
-                this.dataStreamClient,
-                this.stagingDataset,
-                this.stagingTable,
-                this.replicaDataset,
-                this.replicaTable));
+        // Group each batch of rows into a single table object for merge
+        PCollection<KV<TableId, TableRow>> groupedByTable = input
+                .apply(
+                        MapElements.into(
+                                TypeDescriptors.kvs(
+                                        TypeDescriptors.strings(),
+                                        TypeDescriptors.kvs(
+                                                TypeDescriptor.of(TableId.class),
+                                                TypeDescriptor.of(TableRow.class))))
+                                .via(tableInfo -> KV.of(tableInfo.getKey().toString(), tableInfo)))
+                .apply(
+                        new BigQueryMerger.TriggerPerKeyOnFixedIntervals<String, KV<TableId, TableRow>>(windowDuration))
+                .apply(Values.create());
 
-    // Excute Merge Statement
-    return BigQueryMerger.expandExecuteMerge(mergeInfoRecords, mergeConfiguration, bigQueryClient);
-  }
+        // Create MergeInfo objects using DataStream APIs
+        PCollection<MergeInfo> mergeInfoRecords =
+                groupedByTable.apply(
+                        "Create MergeInfo Objects",
+                        new MergeInfoMapper(
+                                this.dataStreamClient,
+                                this.stagingDataset,
+                                this.stagingTable,
+                                this.replicaDataset,
+                                this.replicaTable));
+
+        // Excute Merge Statement
+        return BigQueryMerger.expandExecuteMerge(mergeInfoRecords, mergeConfiguration, bigQueryClient);
+    }
 }
