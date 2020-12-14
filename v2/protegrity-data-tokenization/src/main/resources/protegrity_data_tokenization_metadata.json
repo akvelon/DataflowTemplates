@@ -137,13 +137,6 @@
       "helpText": "GCS path to the payload configuration file",
       "paramType": "GCS_READ_FILE",
       "isOptional": false
-    },
-    {
-      "name": "tokenizedDeadLetterGcsPath",
-      "label": "dead letter path",
-      "helpText": "GCS path to the payload configuration file",
-      "paramType": "GCS_READ_FILE",
-      "isOptional": true
     }
   ]
 }

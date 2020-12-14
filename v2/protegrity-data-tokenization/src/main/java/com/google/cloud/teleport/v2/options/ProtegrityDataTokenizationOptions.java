@@ -69,9 +69,4 @@ public interface ProtegrityDataTokenizationOptions extends PipelineOptions,
   String getNonTokenizedDeadLetterGcsPath();
 
   void setNonTokenizedDeadLetterGcsPath(String nonTokenizedDeadLetterGcsPath);
-
-  @Description("Dead-Letter GCS path to store tokenized data")
-  String getTokenizedDeadLetterGcsPath();
-
-  void setTokenizedDeadLetterGcsPath(String tokenizedDeadLetterGcsPath);
 }
