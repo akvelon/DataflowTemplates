@@ -103,26 +103,26 @@ public class GcsIO {
 
     void setInputGcsFilePattern(String inputGcsFilePattern);
 
-    @Description("GCS file directory for files in bucket to write data to")
-        String getOutputGcsDirectory();
+    @Description("GCS directory in bucket to write data to")
+    String getOutputGcsDirectory();
 
-        void setOutputGcsDirectory(String outputGcsDirectory);
+    void setOutputGcsDirectory(String outputGcsDirectory);
 
-        @Description("File format of input files. Supported formats: JSON, CSV")
+    @Description("File format of input files. Supported formats: JSON, CSV")
     @Default.Enum("JSON")
     GcsIO.FORMAT getInputGcsFileFormat();
 
     void setInputGcsFileFormat(GcsIO.FORMAT inputGcsFileFormat);
 
     @Description("File format of output files. Supported formats: JSON, CSV")
-        @Default.Enum("JSON")
-        GcsIO.FORMAT getOutputGcsFileFormat();
+    @Default.Enum("JSON")
+    GcsIO.FORMAT getOutputGcsFileFormat();
 
-        void setOutputGcsFileFormat(GcsIO.FORMAT outputGcsFileFormat);
+    void setOutputGcsFileFormat(GcsIO.FORMAT outputGcsFileFormat);
 
-        // CSV parameters
-        @Description("If file(s) contain headers")
-        Boolean getCsvContainsHeaders();
+    // CSV parameters
+    @Description("If file(s) contain headers")
+    Boolean getCsvContainsHeaders();
 
     void setCsvContainsHeaders(Boolean csvContainsHeaders);
 

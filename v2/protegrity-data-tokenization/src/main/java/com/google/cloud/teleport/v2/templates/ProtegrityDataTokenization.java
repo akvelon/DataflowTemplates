@@ -142,29 +142,32 @@ public class ProtegrityDataTokenization {
                     schema.getBeamSchema()
             );
         }
-        else if (options.getBigQueryTableName() != null) {
-            WriteResult writeResult = write(rows.getResults(), options.getBigQueryTableName(), schema.getBigQuerySchema());
-            writeResult
-                    .getFailedInsertsWithErr()
-                    .apply(
-                            "WrapInsertionErrors",
-                            MapElements.into(FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor())
-                                    .via(BigQueryIO::wrapBigQueryInsertError))
-                    .setCoder(FAILSAFE_ELEMENT_CODER)
-                    .apply(
-                            "WriteInsertionFailedRecords",
-                            ErrorConverters.WriteStringMessageErrors.newBuilder()
-                                    .setErrorRecordsTable(options.getBigQueryTableName() + DEFAULT_DEADLETTER_TABLE_SUFFIX)
-                                    .setErrorRecordsTableSchema(SchemaUtils.DEADLETTER_SCHEMA)
-                                    .build());
-        } else if (options.getBigTableInstanceId() != null) {
-            new BigTableIO(options).write(
-                    rows.getResults(),
-                    schema.getBeamSchema()
-            );
-        } else {
-            throw new IllegalStateException("No sink is provided, please configure GCS, BigQuery or BigTable.");
-        }
+    else if (options.getBigQueryTableName() != null) {
+        WriteResult writeResult = write(rows.getResults(), options.getBigQueryTableName(),
+                schema.getBigQuerySchema());
+        writeResult
+                .getFailedInsertsWithErr()
+                .apply(
+                        "WrapInsertionErrors",
+                        MapElements.into(FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor())
+                                .via(BigQueryIO::wrapBigQueryInsertError))
+                .setCoder(FAILSAFE_ELEMENT_CODER)
+                .apply(
+                        "WriteInsertionFailedRecords",
+                        ErrorConverters.WriteStringMessageErrors.newBuilder()
+                                .setErrorRecordsTable(
+                                        options.getBigQueryTableName() + DEFAULT_DEADLETTER_TABLE_SUFFIX)
+                                .setErrorRecordsTableSchema(SchemaUtils.DEADLETTER_SCHEMA)
+                                .build());
+    } else if (options.getBigTableInstanceId() != null) {
+        new BigTableIO(options).write(
+                rows.getResults(),
+                schema.getBeamSchema()
+        );
+    } else {
+        throw new IllegalStateException(
+                "No sink is provided, please configure BigQuery or BigTable.");
+    }
 
     return pipeline.run();
   }
