@@ -63,11 +63,11 @@ public class GcsIO {
     /** Necessary {@link PipelineOptions} options for Pipelines that operate with JSON/CSV data in GCS. */
     public interface GcsPipelineOptions extends PipelineOptions {
         @Description("GCS filepattern for files in bucket to read data from")
-        String getInputGcsPath();
+        String getInputGcsFilePattern();
 
-        void setInputGcsPath(String inputGcsPath);
+        void setInputGcsFilePattern(String inputGcsFilePattern);
 
-        @Description("GCS filepattern for files in bucket to write data to")
+        @Description("GCS file path for files in bucket to write data to")
         String getOutputGcsPath();
 
         void setOutputGcsPath(String outputGcsPath);
@@ -117,7 +117,7 @@ public class GcsIO {
     public PCollection<String> read(Pipeline pipeline, String schema) {
         if (options.getInputGcsFileFormat() == FORMAT.JSON) {
             return pipeline
-                    .apply("ReadJsonFromGCSFiles", TextIO.read().from(options.getInputGcsPath()));
+                    .apply("ReadJsonFromGCSFiles", TextIO.read().from(options.getInputGcsFilePattern()));
         } else if (options.getInputGcsFileFormat() == FORMAT.CSV) {
             return pipeline
                     /*
@@ -129,7 +129,7 @@ public class GcsIO {
                                     .setCsvFormat(options.getCsvFormat())
                                     .setDelimiter(options.getCsvDelimiter())
                                     .setHasHeaders(options.getCsvContainsHeaders())
-                                    .setInputFileSpec(options.getInputGcsPath())
+                                    .setInputFileSpec(options.getInputGcsFilePattern())
                                     .setHeaderTag(CSV_HEADERS)
                                     .setLineTag(CSV_LINES)
                                     .build())

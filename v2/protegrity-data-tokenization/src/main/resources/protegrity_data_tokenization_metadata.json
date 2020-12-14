@@ -31,6 +31,13 @@
       "isOptional": true
     },
     {
+      "name": "outputGcsFileFormat",
+      "label": "File format of output files",
+      "helpText": "File format of output files. Supported formats: JSON, CSV",
+      "paramType": "TEXT",
+      "isOptional": true
+    },
+    {
       "name": "csvContainsHeaders",
       "label": "If file(s) contain headers",
       "helpText": "`true` if file(s) in bucket to read data from contain headers, and `false` otherwise",
