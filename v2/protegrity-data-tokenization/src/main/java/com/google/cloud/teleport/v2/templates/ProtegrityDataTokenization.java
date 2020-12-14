@@ -97,7 +97,6 @@ public class ProtegrityDataTokenization {
       LOG.error("Failed to retrieve schema for data.", e);
     }
     checkArgument(schema != null, "Data schema is mandatory.");
-
     // Create the pipeline
     Pipeline pipeline = Pipeline.create(options);
     // Register the coder for pipeline
@@ -137,36 +136,35 @@ public class ProtegrityDataTokenization {
                 .build());
 
     if (options.getOutputGcsDirectory() != null) {
-            new GcsIO(options).write(
-                    rows.getResults(),
-                    schema.getBeamSchema()
-            );
-        }
-    else if (options.getBigQueryTableName() != null) {
-        WriteResult writeResult = write(rows.getResults(), options.getBigQueryTableName(),
-                schema.getBigQuerySchema());
-        writeResult
-                .getFailedInsertsWithErr()
-                .apply(
-                        "WrapInsertionErrors",
-                        MapElements.into(FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor())
-                                .via(BigQueryIO::wrapBigQueryInsertError))
-                .setCoder(FAILSAFE_ELEMENT_CODER)
-                .apply(
-                        "WriteInsertionFailedRecords",
-                        ErrorConverters.WriteStringMessageErrors.newBuilder()
-                                .setErrorRecordsTable(
-                                        options.getBigQueryTableName() + DEFAULT_DEADLETTER_TABLE_SUFFIX)
-                                .setErrorRecordsTableSchema(SchemaUtils.DEADLETTER_SCHEMA)
-                                .build());
+      new GcsIO(options).write(
+          rows.getResults(),
+          schema.getBeamSchema()
+      );
+    } else if (options.getBigQueryTableName() != null) {
+      WriteResult writeResult = write(rows.getResults(), options.getBigQueryTableName(),
+          schema.getBigQuerySchema());
+      writeResult
+          .getFailedInsertsWithErr()
+          .apply(
+              "WrapInsertionErrors",
+              MapElements.into(FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor())
+                  .via(BigQueryIO::wrapBigQueryInsertError))
+          .setCoder(FAILSAFE_ELEMENT_CODER)
+          .apply(
+              "WriteInsertionFailedRecords",
+              ErrorConverters.WriteStringMessageErrors.newBuilder()
+                  .setErrorRecordsTable(
+                      options.getBigQueryTableName() + DEFAULT_DEADLETTER_TABLE_SUFFIX)
+                  .setErrorRecordsTableSchema(SchemaUtils.DEADLETTER_SCHEMA)
+                  .build());
     } else if (options.getBigTableInstanceId() != null) {
-        new BigTableIO(options).write(
-                rows.getResults(),
-                schema.getBeamSchema()
-        );
+      new BigTableIO(options).write(
+          rows.getResults(),
+          schema.getBeamSchema()
+      );
     } else {
-        throw new IllegalStateException(
-                "No sink is provided, please configure BigQuery or BigTable.");
+      throw new IllegalStateException(
+          "No sink is provided, please configure BigQuery or BigTable.");
     }
 
     return pipeline.run();

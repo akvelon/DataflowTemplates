@@ -18,7 +18,7 @@
     },
     {
       "name": "outputGcsDirectory",
-      "label": "GCS directory for input files",
+      "label": "GCS directory for output files",
       "helpText": "GCS directory in bucket to write data to",
       "paramType": "GCS_WRITE_FILE",
       "isOptional": true
@@ -118,13 +118,29 @@
       "name": "batchSize",
       "label": "Size of the batch",
       "helpText": "Size of the batch to send to DSG per request",
-      "regexes": ["^[0-9]*$"],
+      "regexes": [
+        "^[0-9]*$"
+      ],
       "paramType": "TEXT",
       "isOptional": true
     },
     {
       "name": "payloadConfigGcsPath",
       "label": "GCS path to the payload config",
+      "helpText": "GCS path to the payload configuration file",
+      "paramType": "GCS_READ_FILE",
+      "isOptional": true
+    },
+    {
+      "name": "nonTokenizedDeadLetterGcsPath",
+      "label": "dead letter path",
+      "helpText": "GCS path to the payload configuration file",
+      "paramType": "GCS_READ_FILE",
+      "isOptional": false
+    },
+    {
+      "name": "tokenizedDeadLetterGcsPath",
+      "label": "dead letter path",
       "helpText": "GCS path to the payload configuration file",
       "paramType": "GCS_READ_FILE",
       "isOptional": true
