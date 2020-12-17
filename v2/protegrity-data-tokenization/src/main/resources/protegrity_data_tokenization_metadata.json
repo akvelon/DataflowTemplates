@@ -9,7 +9,7 @@
       "paramType": "GCS_READ_FILE",
       "isOptional": false,
       "regexes": [
-        "^gs:\\/\\/[^\\n\\r]+$"
+        "^gs:\\/\\/[^\\n\\r\\s]+$"
       ]
     },
     {
@@ -19,7 +19,7 @@
       "paramType": "GCS_READ_FILE",
       "isOptional": true,
       "regexes": [
-        "^gs:\\/\\/[^\\n\\r]+$"
+        "^gs:\\/\\/[^\\n\\r\\s]+$"
       ]
     },
     {
@@ -29,7 +29,7 @@
       "paramType": "GCS_WRITE_FILE",
       "isOptional": true,
       "regexes": [
-        "^gs:\\/\\/[^\\n\\r]+$"
+        "^gs:\\/\\/[^\\n\\r\\s]+$"
       ]
     },
     {
@@ -167,7 +167,7 @@
       "paramType": "GCS_READ_FILE",
       "isOptional": true,
       "regexes": [
-        "^gs:\\/\\/[^\\n\\r]+$"
+        "^gs:\\/\\/[^\\n\\r\\s]+$"
       ]
     },
     {
@@ -177,7 +177,7 @@
       "paramType": "GCS_READ_FILE",
       "isOptional": false,
       "regexes": [
-        "^gs:\\/\\/[^\\n\\r]+$"
+        "^gs:\\/\\/[^\\n\\r\\s]+$"
       ]
     }
   ]
