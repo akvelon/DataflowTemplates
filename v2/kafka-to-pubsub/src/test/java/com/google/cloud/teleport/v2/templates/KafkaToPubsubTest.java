@@ -18,26 +18,106 @@ package com.google.cloud.teleport.v2.templates;
 import static com.google.cloud.teleport.v2.kafka.consumer.Utils.getKafkaCredentialsFromVault;
 import static com.google.cloud.teleport.v2.templates.KafkaPubsubConstants.PASSWORD;
 import static com.google.cloud.teleport.v2.templates.KafkaPubsubConstants.USERNAME;
+import static com.google.cloud.teleport.v2.transforms.FormatTransform.readFromKafka;
 
 import com.google.cloud.teleport.v2.kafka.consumer.Utils;
+import com.google.common.collect.ImmutableMap;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
+import org.apache.beam.sdk.coders.KvCoder;
+import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
+import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.transforms.Values;
+import org.apache.beam.sdk.values.KV;
+import org.apache.beam.sdk.values.PCollection;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.security.scram.internals.ScramMechanism;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 
-/** Test class for {@link KafkaToPubsub}. */
+/**
+ * Test class for {@link KafkaToPubsub}.
+ */
 public class KafkaToPubsubTest {
 
-  /** Tests configureKafka() with a null input properties. */
+  @Rule
+  public final transient TestPipeline pipeline = TestPipeline.create();
+
+  static final KvCoder<String, String> stringKvCoder = KvCoder
+          .of(StringUtf8Coder.of(), StringUtf8Coder.of());
+
+  /**
+   * Test kafka to pubsub temlplate end-to-end.
+   **/
+  @Test
+  public void startKafka() throws Exception {
+//    KafkaToPubsubOptions options = PipelineOptionsFactory.create().as(KafkaToPubsubOptions.class);
+    String bootstrapServer = setupKafkaContainer();
+    System.out.println("BootstrapServer: " + bootstrapServer);
+
+    try (
+            KafkaProducer<String, String> producer = new KafkaProducer<>(
+                    ImmutableMap.of(
+                            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer,
+                            ProducerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString()
+                    ),
+                    new StringSerializer(),
+                    new StringSerializer()
+            );
+    ) {
+      String topicName = "messages-topic";
+      while (true) {
+        producer.send(new ProducerRecord<>(topicName, "testcontainers", "rulezzz")).get();
+        System.out.println("SENT. START SLEEPING for 15sec");
+        Thread.sleep(15000);
+      }
+    }
+  }
+
+
+  @Test
+  public void startPipeline() {
+    String bootstrapServer = "PLAINTEXT://localhost:32777";
+    String[] topicsList = new String[]{"messages-topic"};
+    String pub_sub_topic = "projects/try-kafka-pubsub/topics/listen-to-kafka";
+
+    Map<String, Object> kafkaConfig = new HashMap<>();
+    Map<String, String> sslConfig = null;
+
+    PCollection<KV<String, String>> readStrings = pipeline
+            .apply("readFromKafka",
+                    readFromKafka(bootstrapServer, Arrays.asList(topicsList), kafkaConfig, sslConfig))
+            .setCoder(stringKvCoder);
+
+    readStrings.apply(Values.create())
+            .apply("writeToPubSub", PubsubIO.writeStrings().to(pub_sub_topic));
+
+    pipeline.run();
+  }
+
+
+  /**
+   * Tests configureKafka() with a null input properties.
+   */
   @Test
   public void testConfigureKafkaNullProps() {
     Map<String, Object> config = Utils.configureKafka(null);
     Assert.assertEquals(config, new HashMap<>());
   }
 
-  /** Tests configureKafka() without a Password in input properties. */
+  /**
+   * Tests configureKafka() without a Password in input properties.
+   */
   @Test
   public void testConfigureKafkaNoPassword() {
     Map<String, String> props = new HashMap<>();
@@ -46,7 +126,9 @@ public class KafkaToPubsubTest {
     Assert.assertEquals(config, new HashMap<>());
   }
 
-  /** Tests configureKafka() without a Username in input properties. */
+  /**
+   * Tests configureKafka() without a Username in input properties.
+   */
   @Test
   public void testConfigureKafkaNoUsername() {
     Map<String, String> props = new HashMap<>();
@@ -55,7 +137,9 @@ public class KafkaToPubsubTest {
     Assert.assertEquals(config, new HashMap<>());
   }
 
-  /** Tests configureKafka() with an appropriate input properties. */
+  /**
+   * Tests configureKafka() with an appropriate input properties.
+   */
   @Test
   public void testConfigureKafka() {
     Map<String, String> props = new HashMap<>();
@@ -65,21 +149,30 @@ public class KafkaToPubsubTest {
     Map<String, Object> expectedConfig = new HashMap<>();
     expectedConfig.put(SaslConfigs.SASL_MECHANISM, ScramMechanism.SCRAM_SHA_512.mechanismName());
     expectedConfig.put(
-        SaslConfigs.SASL_JAAS_CONFIG,
-        String.format(
-            "org.apache.kafka.common.security.scram.ScramLoginModule required "
-                + "username=\"%s\" password=\"%s\";",
-            props.get(USERNAME), props.get(PASSWORD)));
+            SaslConfigs.SASL_JAAS_CONFIG,
+            String.format(
+                    "org.apache.kafka.common.security.scram.ScramLoginModule required "
+                            + "username=\"%s\" password=\"%s\";",
+                    props.get(USERNAME), props.get(PASSWORD)));
 
     Map<String, Object> config = Utils.configureKafka(props);
     Assert.assertEquals(config, expectedConfig);
   }
 
-  /** Tests getKafkaCredentialsFromVault() with an invalid url. */
+  /**
+   * Tests getKafkaCredentialsFromVault() with an invalid url.
+   */
   @Test
   public void testGetKafkaCredentialsFromVaultInvalidUrl() {
     Map<String, Map<String, String>> credentials =
-        getKafkaCredentialsFromVault("some-url", "some-token");
+            getKafkaCredentialsFromVault("some-url", "some-token");
     Assert.assertEquals(credentials, new HashMap<>());
+  }
+
+  private static String setupKafkaContainer() {
+    KafkaContainer kafkaContainer = new KafkaContainer(
+            DockerImageName.parse("confluentinc/cp-kafka:5.4.3"));
+    kafkaContainer.start();
+    return kafkaContainer.getBootstrapServers();
   }
 }
