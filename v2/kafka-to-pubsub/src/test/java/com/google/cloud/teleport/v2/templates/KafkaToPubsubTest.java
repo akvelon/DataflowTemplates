@@ -21,11 +21,9 @@ import static com.google.cloud.teleport.v2.templates.KafkaPubsubConstants.USERNA
 import static com.google.cloud.teleport.v2.transforms.FormatTransform.readFromKafka;
 
 import com.google.cloud.teleport.v2.kafka.consumer.Utils;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
@@ -48,7 +46,7 @@ public class KafkaToPubsubTest {
   public final transient TestPipeline pipeline = TestPipeline.create();
 
   static final KvCoder<String, String> stringKvCoder = KvCoder
-          .of(StringUtf8Coder.of(), StringUtf8Coder.of());
+      .of(StringUtf8Coder.of(), StringUtf8Coder.of());
 
   @Test
   public void startPipeline() {
@@ -61,12 +59,12 @@ public class KafkaToPubsubTest {
     Map<String, String> sslConfig = null;
 
     PCollection<KV<String, String>> readStrings = pipeline
-            .apply("readFromKafka",
-                readFromKafka(bootstrapServer, Arrays.asList(topicsList), kafkaConfig, sslConfig))
-            .setCoder(stringKvCoder);
+        .apply("readFromKafka",
+            readFromKafka(bootstrapServer, Arrays.asList(topicsList), kafkaConfig, sslConfig))
+        .setCoder(stringKvCoder);
 
     readStrings.apply(Values.create())
-            .apply("writeToPubSub", PubsubIO.writeStrings().to(pub_sub_topic));
+        .apply("writeToPubSub", PubsubIO.writeStrings().to(pub_sub_topic));
 
     pipeline.run();
   }
@@ -115,11 +113,11 @@ public class KafkaToPubsubTest {
     Map<String, Object> expectedConfig = new HashMap<>();
     expectedConfig.put(SaslConfigs.SASL_MECHANISM, ScramMechanism.SCRAM_SHA_512.mechanismName());
     expectedConfig.put(
-            SaslConfigs.SASL_JAAS_CONFIG,
-            String.format(
-                    "org.apache.kafka.common.security.scram.ScramLoginModule required "
-                            + "username=\"%s\" password=\"%s\";",
-                    props.get(USERNAME), props.get(PASSWORD)));
+        SaslConfigs.SASL_JAAS_CONFIG,
+        String.format(
+            "org.apache.kafka.common.security.scram.ScramLoginModule required "
+                + "username=\"%s\" password=\"%s\";",
+            props.get(USERNAME), props.get(PASSWORD)));
 
     Map<String, Object> config = Utils.configureKafka(props);
     Assert.assertEquals(config, expectedConfig);
@@ -131,7 +129,7 @@ public class KafkaToPubsubTest {
   @Test
   public void testGetKafkaCredentialsFromVaultInvalidUrl() {
     Map<String, Map<String, String>> credentials =
-            getKafkaCredentialsFromVault("some-url", "some-token");
+        getKafkaCredentialsFromVault("some-url", "some-token");
     Assert.assertEquals(credentials, new HashMap<>());
   }
 }
