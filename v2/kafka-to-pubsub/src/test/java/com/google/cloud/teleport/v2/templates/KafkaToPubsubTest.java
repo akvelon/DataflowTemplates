@@ -21,11 +21,11 @@ import static com.google.cloud.teleport.v2.templates.KafkaPubsubConstants.USERNA
 import static com.google.cloud.teleport.v2.transforms.FormatTransform.readFromKafka;
 
 import com.google.cloud.teleport.v2.kafka.consumer.Utils;
-import com.google.common.collect.ImmutableMap;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
+
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
@@ -33,17 +33,11 @@ import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.security.scram.internals.ScramMechanism;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Test class for {@link KafkaToPubsub}.
@@ -56,39 +50,11 @@ public class KafkaToPubsubTest {
   static final KvCoder<String, String> stringKvCoder = KvCoder
           .of(StringUtf8Coder.of(), StringUtf8Coder.of());
 
-  /**
-   * Test kafka to pubsub temlplate end-to-end.
-   **/
-  @Test
-  public void startKafka() throws Exception {
-//    KafkaToPubsubOptions options = PipelineOptionsFactory.create().as(KafkaToPubsubOptions.class);
-    String bootstrapServer = setupKafkaContainer();
-    System.out.println("BootstrapServer: " + bootstrapServer);
-
-    try (
-            KafkaProducer<String, String> producer = new KafkaProducer<>(
-                    ImmutableMap.of(
-                            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer,
-                            ProducerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString()
-                    ),
-                    new StringSerializer(),
-                    new StringSerializer()
-            );
-    ) {
-      String topicName = "messages-topic";
-      while (true) {
-        producer.send(new ProducerRecord<>(topicName, "testcontainers", "rulezzz")).get();
-        System.out.println("SENT. START SLEEPING for 15sec");
-        Thread.sleep(15000);
-      }
-    }
-  }
-
-
   @Test
   public void startPipeline() {
-    String bootstrapServer = "PLAINTEXT://localhost:32777";
-    String[] topicsList = new String[]{"messages-topic"};
+    RunKafkaContainer rkc = new RunKafkaContainer();
+    String bootstrapServer = rkc.getBootstrapServer();
+    String[] topicsList = new String[]{rkc.getTopicName()};
     String pub_sub_topic = "projects/try-kafka-pubsub/topics/listen-to-kafka";
 
     Map<String, Object> kafkaConfig = new HashMap<>();
@@ -96,7 +62,7 @@ public class KafkaToPubsubTest {
 
     PCollection<KV<String, String>> readStrings = pipeline
             .apply("readFromKafka",
-                    readFromKafka(bootstrapServer, Arrays.asList(topicsList), kafkaConfig, sslConfig))
+                readFromKafka(bootstrapServer, Arrays.asList(topicsList), kafkaConfig, sslConfig))
             .setCoder(stringKvCoder);
 
     readStrings.apply(Values.create())
@@ -167,12 +133,5 @@ public class KafkaToPubsubTest {
     Map<String, Map<String, String>> credentials =
             getKafkaCredentialsFromVault("some-url", "some-token");
     Assert.assertEquals(credentials, new HashMap<>());
-  }
-
-  private static String setupKafkaContainer() {
-    KafkaContainer kafkaContainer = new KafkaContainer(
-            DockerImageName.parse("confluentinc/cp-kafka:5.4.3"));
-    kafkaContainer.start();
-    return kafkaContainer.getBootstrapServers();
   }
 }
