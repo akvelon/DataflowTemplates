@@ -49,7 +49,7 @@ public class KafkaToPubsubTest {
       .of(StringUtf8Coder.of(), StringUtf8Coder.of());
 
   @Test
-  public void startPipeline() {
+  public void testKafkaToPubsubE2E() {
     RunKafkaContainer rkc = new RunKafkaContainer();
     String bootstrapServer = rkc.getBootstrapServer();
     String[] topicsList = new String[]{rkc.getTopicName()};
