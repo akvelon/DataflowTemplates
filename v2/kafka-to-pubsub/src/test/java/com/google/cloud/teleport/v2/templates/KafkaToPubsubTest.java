@@ -26,7 +26,10 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubClient;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubJsonClient;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubOptions;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.KV;
@@ -34,8 +37,11 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.security.scram.internals.ScramMechanism;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.testcontainers.containers.PubSubEmulatorContainer;
+import org.testcontainers.utility.DockerImageName;
 
 /**
  * Test class for {@link KafkaToPubsub}.
@@ -48,12 +54,31 @@ public class KafkaToPubsubTest {
   static final KvCoder<String, String> stringKvCoder = KvCoder
       .of(StringUtf8Coder.of(), StringUtf8Coder.of());
 
+  private static final String PROJECT_ID = "try-kafka-pubsub";
+  private static final String TOPIC_NAME = "listen-to-kafka";
+  private static final String SUBSCRIPTION = "kafka-subscription";
+
+  private String pubsubUrl;
+  private PubsubClient pubsubClient;
+
+  @Before
+  public void setUp() throws Exception {
+    pubsubUrl = setupPubsubContainer();
+
+    pipeline.getOptions().as(PubsubOptions.class).setPubsubRootUrl("http://" + pubsubUrl);
+
+    pubsubClient = PubsubJsonClient.FACTORY.newClient(null, null, pipeline.getOptions().as(PubsubOptions.class));
+    pubsubClient.createTopic(PubsubClient.topicPathFromName(PROJECT_ID, TOPIC_NAME));
+    System.out.println(pubsubClient.listTopics(PubsubClient.projectPathFromId(PROJECT_ID)));
+
+  }
+
   @Test
   public void testKafkaToPubsubE2E() {
     RunKafkaContainer rkc = new RunKafkaContainer();
     String bootstrapServer = rkc.getBootstrapServer();
     String[] topicsList = new String[]{rkc.getTopicName()};
-    String pub_sub_topic = "projects/try-kafka-pubsub/topics/listen-to-kafka";
+    String pub_sub_topic = String.format("projects/%s/topics/%s", PROJECT_ID, TOPIC_NAME);
 
     Map<String, Object> kafkaConfig = new HashMap<>();
     Map<String, String> sslConfig = null;
@@ -65,6 +90,8 @@ public class KafkaToPubsubTest {
 
     readStrings.apply(Values.create())
         .apply("writeToPubSub", PubsubIO.writeStrings().to(pub_sub_topic));
+
+//    DirectRunner.DirectPipelineResult job = DirectRunner.fromOptions(pipeline.getOptions()).run(pipeline);
 
     pipeline.run();
   }
@@ -131,5 +158,13 @@ public class KafkaToPubsubTest {
     Map<String, Map<String, String>> credentials =
         getKafkaCredentialsFromVault("some-url", "some-token");
     Assert.assertEquals(credentials, new HashMap<>());
+  }
+
+  private static String setupPubsubContainer() {
+    PubSubEmulatorContainer emulator = new PubSubEmulatorContainer(
+            DockerImageName.parse("gcr.io/google.com/cloudsdktool/cloud-sdk:316.0.0-emulators")
+    );
+    emulator.start();
+    return emulator.getEmulatorEndpoint();
   }
 }
