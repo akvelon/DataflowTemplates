@@ -37,7 +37,7 @@ public class RunKafkaContainer implements Runnable {
 
     public void run() {
         try {
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < 4; ++i) {
                 Thread.sleep(10000);
                 producer.send(new ProducerRecord<>(getTopicName(), "testcontainers", "rulezzz"))
                     .get();

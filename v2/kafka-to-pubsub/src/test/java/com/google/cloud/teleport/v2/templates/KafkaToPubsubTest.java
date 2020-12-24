@@ -98,12 +98,12 @@ public class KafkaToPubsubTest {
     Supplier<Void> start = signal.waitForStart(Duration.standardSeconds(10));
     pipeline.apply(signal.signalStart());
     PipelineResult job = pipeline.run();
-    System.out.println("Not blocked");
     start.get();
 
     System.out.println("Waiting for success...");
     signal.waitForSuccess(Duration.standardMinutes(2));
     try {
+      System.out.println("Canceling job");
       job.cancel();
     } catch (IOException exc) {
       System.out.println("IOException");
