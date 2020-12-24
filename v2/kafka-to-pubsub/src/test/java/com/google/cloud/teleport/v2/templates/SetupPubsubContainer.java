@@ -8,6 +8,9 @@ import org.apache.beam.sdk.testing.TestPipeline;
 import org.testcontainers.containers.PubSubEmulatorContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/**
+ * Set up pubsub container.
+ */
 public class SetupPubsubContainer {
 
   private static final String PROJECT_ID = "try-kafka-pubsub";
@@ -16,7 +19,7 @@ public class SetupPubsubContainer {
       .topicPathFromName(PROJECT_ID, TOPIC_NAME);
 
 
-  public void SetupPubsubContainer(TestPipeline pipeline) throws Exception {
+  SetupPubsubContainer(TestPipeline pipeline) throws Exception {
     PubsubOptions options = pipeline.getOptions().as(PubsubOptions.class);
 
     String pubsubUrl = setupPubsubContainer();

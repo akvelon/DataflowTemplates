@@ -10,6 +10,9 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/**
+ * Run kafka container in seperate thread to produce message.
+ */
 public class RunKafkaContainer implements Runnable {
 
     Thread kafkaThread;
@@ -34,8 +37,12 @@ public class RunKafkaContainer implements Runnable {
 
     public void run() {
         try {
-            Thread.sleep(10000);
-            producer.send(new ProducerRecord<>(getTopicName(), "testcontainers", "rulezzz")).get();
+            for (int i = 0; i < 10; ++i) {
+                Thread.sleep(10000);
+                producer.send(new ProducerRecord<>(getTopicName(), "testcontainers", "rulezzz"))
+                    .get();
+                System.out.println("Producer sent");
+            }
         } catch (ExecutionException | InterruptedException e) {
             System.out.println("Something went wrong in kafka producer");
             e.printStackTrace();

@@ -21,18 +21,23 @@ import static com.google.cloud.teleport.v2.templates.KafkaPubsubConstants.USERNA
 import static com.google.cloud.teleport.v2.transforms.FormatTransform.readFromKafka;
 
 import com.google.cloud.teleport.v2.kafka.consumer.Utils;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.beam.sdk.coders.KvCoder;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
+import org.apache.beam.runners.direct.DirectOptions;
+import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
+import org.apache.beam.sdk.io.gcp.pubsub.TestPubsubSignal;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Supplier;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.security.scram.internals.ScramMechanism;
+import org.joda.time.Duration;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,17 +50,28 @@ public class KafkaToPubsubTest {
 
   @Rule
   public final transient TestPipeline pipeline = TestPipeline.create();
+  @Rule
+  public transient TestPubsubSignal signal = TestPubsubSignal.create();
 
-  static final KvCoder<String, String> stringKvCoder = KvCoder
-      .of(StringUtf8Coder.of(), StringUtf8Coder.of());
+  private static class LogIt extends DoFn<String, String> {
+
+    @ProcessElement
+    public void process(@Element String context, OutputReceiver<String> out) {
+      System.out.println(context);
+      out.output(context);
+    }
+  }
 
   @Before
-  public void SetUp() {
-    SetupPubsubContainer psc = new SetupPubsubContainer();
+  public void setUp() {
+
+//    SetupPubsubContainer psc = new SetupPubsubContainer();
   }
 
   @Test
-  public void testKafkaToPubsubE2E() {
+  public void testKafkaToPubsubE2E() throws IOException {
+    pipeline.getOptions().as(DirectOptions.class).setBlockOnRun(false);
+
     RunKafkaContainer rkc = new RunKafkaContainer();
     String bootstrapServer = rkc.getBootstrapServer();
     String[] kafkaTopicsList = new String[]{rkc.getTopicName()};
@@ -67,13 +83,35 @@ public class KafkaToPubsubTest {
 
     PCollection<KV<String, String>> readStrings = pipeline
         .apply("readFromKafka",
-            readFromKafka(bootstrapServer, Arrays.asList(kafkaTopicsList), kafkaConfig, sslConfig))
-        .setCoder(stringKvCoder);
+            readFromKafka(bootstrapServer, Arrays.asList(kafkaTopicsList), kafkaConfig, sslConfig));
 
-    readStrings.apply(Values.create())
-        .apply("writeToPubSub", PubsubIO.writeStrings().to(pubsubTopicPath));
+    PCollection<String> readFromPubsub = readStrings.apply(Values.create())
+        .apply("writeToPubSub", PubsubIO.writeStrings().to(pubsubTopicPath)).getPipeline()
+        .apply("readFromPubsub",
+            PubsubIO.readStrings().fromTopic(pubsubTopicPath));
+//    PCollection<String> latest = readFromPubsub.apply("printIt", ParDo.of(new LogIt()));
 
-    pipeline.run();//.waitUntilFinish(Duration.standardMinutes(2));
+    readFromPubsub.apply(
+        "waitForAnyMessage",
+        signal.signalSuccessWhen(readFromPubsub.getCoder(), anyMessages -> true));
+
+    Supplier<Void> start = signal.waitForStart(Duration.standardSeconds(10));
+    pipeline.apply(signal.signalStart());
+    PipelineResult job = pipeline.run();
+    System.out.println("Not blocked");
+    start.get();
+
+    System.out.println("Waiting for success...");
+    signal.waitForSuccess(Duration.standardMinutes(2));
+    try {
+      job.cancel();
+    } catch (IOException exc) {
+      System.out.println("IOException");
+    } catch (UnsupportedOperationException e) {
+      System.out.println("UnsupportedOperationException");
+    }
+
+//    pipeline.run().waitUntilFinish(Duration.standardSeconds(10));
   }
 
 
