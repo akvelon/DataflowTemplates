@@ -25,12 +25,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.apache.beam.runners.direct.DirectOptions;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.io.gcp.pubsub.TestPubsubSignal;
 import org.apache.beam.sdk.testing.TestPipeline;
-import org.apache.beam.sdk.transforms.DoFn;
+import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.beam.sdk.transforms.Values;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
@@ -52,27 +54,32 @@ public class KafkaToPubsubTest {
   public final transient TestPipeline pipeline = TestPipeline.create();
   @Rule
   public transient TestPubsubSignal signal = TestPubsubSignal.create();
+  @Rule
+  public static final String pubsubMessage = "rulezzz";
 
-  private static class LogIt extends DoFn<String, String> {
+  private static class TestMessage implements SerializableFunction<Set<String>, Boolean> {
 
-    @ProcessElement
-    public void process(@Element String context, OutputReceiver<String> out) {
-      System.out.println(context);
-      out.output(context);
+    @Override
+    public Boolean apply(Set<String> input) {
+      for (String message : input) {
+        if (!Objects.equals(message, pubsubMessage)) {
+          return false;
+        }
+      }
+      return true;
     }
   }
 
   @Before
-  public void setUp() {
-
-//    SetupPubsubContainer psc = new SetupPubsubContainer();
+  public void setUp() throws Exception {
+//    SetupPubsubContainer psc = new SetupPubsubContainer(pipeline);
   }
 
   @Test
   public void testKafkaToPubsubE2E() throws IOException {
     pipeline.getOptions().as(DirectOptions.class).setBlockOnRun(false);
 
-    RunKafkaContainer rkc = new RunKafkaContainer();
+    RunKafkaContainer rkc = new RunKafkaContainer(pubsubMessage);
     String bootstrapServer = rkc.getBootstrapServer();
     String[] kafkaTopicsList = new String[]{rkc.getTopicName()};
 
@@ -89,29 +96,21 @@ public class KafkaToPubsubTest {
         .apply("writeToPubSub", PubsubIO.writeStrings().to(pubsubTopicPath)).getPipeline()
         .apply("readFromPubsub",
             PubsubIO.readStrings().fromTopic(pubsubTopicPath));
-//    PCollection<String> latest = readFromPubsub.apply("printIt", ParDo.of(new LogIt()));
 
     readFromPubsub.apply(
-        "waitForAnyMessage",
-        signal.signalSuccessWhen(readFromPubsub.getCoder(), anyMessages -> true));
+        "waitForTestMessage",
+        signal.signalSuccessWhen(readFromPubsub.getCoder(), new TestMessage()));
 
     Supplier<Void> start = signal.waitForStart(Duration.standardSeconds(10));
     pipeline.apply(signal.signalStart());
     PipelineResult job = pipeline.run();
     start.get();
-
-    System.out.println("Waiting for success...");
     signal.waitForSuccess(Duration.standardMinutes(2));
     try {
-      System.out.println("Canceling job");
       job.cancel();
-    } catch (IOException exc) {
-      System.out.println("IOException");
-    } catch (UnsupportedOperationException e) {
-      System.out.println("UnsupportedOperationException");
+    } catch (IOException | UnsupportedOperationException e) {
+      System.out.println("Something went wrong");
     }
-
-//    pipeline.run().waitUntilFinish(Duration.standardSeconds(10));
   }
 
 

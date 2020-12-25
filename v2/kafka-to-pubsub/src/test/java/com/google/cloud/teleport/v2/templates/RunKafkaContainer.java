@@ -19,11 +19,13 @@ public class RunKafkaContainer implements Runnable {
     private String topicName;
     private final KafkaProducer<String, String> producer;
     private String bootstrapServer;
+    private String pubsubMessage;
 
-    RunKafkaContainer() {
+    RunKafkaContainer(String pubsubMessage) {
         kafkaThread = new Thread(this, "Kafka container thread");
         setBootstrapServer(setupKafkaContainer());
         setTopicName("messages-topic");
+        setPubsubMessage(pubsubMessage);
         producer = new KafkaProducer<>(
             ImmutableMap.of(
                 ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, getBootstrapServer(),
@@ -37,12 +39,10 @@ public class RunKafkaContainer implements Runnable {
 
     public void run() {
         try {
-            for (int i = 0; i < 4; ++i) {
-                Thread.sleep(10000);
-                producer.send(new ProducerRecord<>(getTopicName(), "testcontainers", "rulezzz"))
-                    .get();
-                System.out.println("Producer sent");
-            }
+            Thread.sleep(20000);
+            producer.send(new ProducerRecord<>(getTopicName(),
+                "testcontainers", "rulezzz")).get();
+            System.out.println("Producer sent");
         } catch (ExecutionException | InterruptedException e) {
             System.out.println("Something went wrong in kafka producer");
             e.printStackTrace();
@@ -70,5 +70,13 @@ public class RunKafkaContainer implements Runnable {
             DockerImageName.parse("confluentinc/cp-kafka:5.4.3"));
         kafkaContainer.start();
         return kafkaContainer.getBootstrapServers();
+    }
+
+    public String getPubsubMessage() {
+        return pubsubMessage;
+    }
+
+    public void setPubsubMessage(String pubsubMessage) {
+        this.pubsubMessage = pubsubMessage;
     }
 }
