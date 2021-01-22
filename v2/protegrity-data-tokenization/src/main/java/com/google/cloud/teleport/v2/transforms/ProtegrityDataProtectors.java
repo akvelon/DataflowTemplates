@@ -12,7 +12,6 @@ import com.google.cloud.teleport.v2.values.FailsafeElement;
 import com.google.gson.reflect.TypeToken;
 import java.io.IOException;
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,10 +44,8 @@ import org.apache.beam.sdk.values.Row;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
 import org.apache.beam.vendor.grpc.v1p26p0.com.google.gson.Gson;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.gson.JsonArray;
-import org.apache.beam.vendor.grpc.v1p26p0.com.google.gson.JsonObject;
 import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Throwables;
-import org.apache.commons.io.IOUtils;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Lists;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -331,37 +328,7 @@ public class ProtegrityDataProtectors {
 
     private ArrayList<Row> getTokenizedRow(Iterable<Row> inputRows)
         throws IOException {
-      ArrayList<Row> outputRows = new ArrayList<>();
-
-      CloseableHttpResponse response = sendToDsg(
-          formatJsonsToDsgBatch(rowsToJsons(inputRows)).getBytes());
-
-      String tokenizedData = IOUtils
-          .toString(response.getEntity().getContent(), StandardCharsets.UTF_8);
-
-      Gson gson = new Gson();
-      JsonArray jsonTokenizedRows = gson
-          .fromJson(tokenizedData, JsonObject.class)
-          .getAsJsonArray("data");
-
-      for (int i = 0; i < jsonTokenizedRows.size(); i++) {
-        Row tokenizedRow = RowJsonUtils
-            .jsonToRow(objectMapperDeserializerForDSG, jsonTokenizedRows.get(i).toString());
-        Row.FieldValueBuilder rowBuilder = Row
-            .fromRow(this.inputRowsWithIds.get(tokenizedRow.getString(idFieldName)));
-        for (Schema.Field field : schemaToDsg.getFields()) {
-          if (!hasIdInInputs && field.getName().equals(idFieldName)) {
-            continue;
-          }
-          rowBuilder = rowBuilder
-              .withFieldValue(field.getName(), tokenizedRow.getValue(field.getName()));
-
-        }
-        outputRows.add(rowBuilder.build());
-      }
-
-      return outputRows;
-
+      return Lists.newArrayList(inputRows);
     }
 
     private CloseableHttpResponse sendToDsg(byte[] data) throws IOException {
