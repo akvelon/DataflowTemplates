@@ -16,6 +16,7 @@
 package com.google.cloud.teleport.v2.templates;
 
 import static com.google.cloud.teleport.v2.transforms.io.BigQueryIO.write;
+import static com.google.cloud.teleport.v2.transforms.io.GcsIO.genericRecordToRowWithCoder;
 import static com.google.cloud.teleport.v2.utils.DurationUtils.parseDuration;
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
 
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
@@ -49,6 +51,7 @@ import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.gcp.bigquery.WriteResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.schemas.utils.AvroUtils;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
@@ -252,9 +255,17 @@ public class ProtegrityDataTokenization {
     if (options.getInputGcsFilePattern() != null) {
       records = new GcsIO(options).read(pipeline, schema);
     } else if (options.getPubsubTopic() != null) {
-      records = pipeline
-          .apply("ReadMessagesFromPubsub",
-              PubsubIO.readStrings().fromTopic(options.getPubsubTopic()));
+      if (options.getInputFileFormat() == FORMAT.AVRO) {
+        org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(schema.getBeamSchema());
+        PCollection<GenericRecord> genericRecords = pipeline
+            .apply("ReadAvroMessagesFromPubsub",
+                PubsubIO.readAvroGenericRecords(avroSchema).fromTopic(options.getPubsubTopic()));
+        records = genericRecordToRowWithCoder(schema, genericRecords);
+      } else {
+        records = pipeline
+            .apply("ReadMessagesFromPubsub",
+                PubsubIO.readStrings().fromTopic(options.getPubsubTopic()));
+      }
       if (options.getOutputGcsDirectory() != null) {
         records = records
             .apply(Window.into(FixedWindows.of(parseDuration(options.getWindowDuration()))));
@@ -267,8 +278,7 @@ public class ProtegrityDataTokenization {
     Get collection of Rows
     */
     PCollection<Row> rows;
-    if (options.getInputGcsFilePattern() != null
-        && options.getInputGcsFileFormat() == FORMAT.AVRO) {
+    if (options.getInputFileFormat() == FORMAT.AVRO) {
       rows = (PCollection<Row>) records;
     } else {
       rows = ((PCollection<String>) records).apply(new JsonToBeamRow(options, schema));

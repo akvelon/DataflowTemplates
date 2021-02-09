@@ -113,16 +113,10 @@ public class GcsIO {
 
     void setOutputGcsDirectory(String outputGcsDirectory);
 
-    @Description("File format of input files. Supported formats: JSON, CSV")
-    @Default.Enum("JSON")
-    GcsIO.FORMAT getInputGcsFileFormat();
-
     void setInputGcsFilePattern(String inputGcsFilePattern);
 
     @Description("GCS directory in bucket to write data to")
     String getOutputGcsDirectory();
-
-    void setInputGcsFileFormat(GcsIO.FORMAT inputGcsFileFormat);
 
     @Description("File format of output files. Supported formats: JSON, CSV")
     @Default.Enum("JSON")
@@ -173,11 +167,11 @@ public class GcsIO {
   }
 
   public PCollection<? extends Serializable> read(Pipeline pipeline, SchemasUtils schema) {
-    if (options.getInputGcsFileFormat() == FORMAT.JSON) {
+    if (options.getInputFileFormat() == FORMAT.JSON) {
       return pipeline
           .apply("ReadJsonFromGCSFiles",
               TextIO.read().from(options.getInputGcsFilePattern()));
-    } else if (options.getInputGcsFileFormat() == FORMAT.CSV) {
+    } else if (options.getInputFileFormat() == FORMAT.CSV) {
       PCollectionTuple jsons = pipeline
           /*
            * Step 1: Read CSV file(s) from Cloud Storage using {@link CsvConverters.ReadCsv}.
@@ -225,16 +219,12 @@ public class GcsIO {
           .apply(
               "GetJson",
               MapElements.into(TypeDescriptors.strings()).via(FailsafeElement::getPayload));
-    } else if (options.getInputGcsFileFormat() == FORMAT.AVRO) {
+    } else if (options.getInputFileFormat() == FORMAT.AVRO) {
       org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(schema.getBeamSchema());
       PCollection<GenericRecord> genericRecords = pipeline.apply(
           "ReadAvroFiles",
           AvroIO.readGenericRecords(avroSchema).from(options.getInputGcsFilePattern()));
-      return genericRecords
-          .apply(
-              "GenericRecordToRow", MapElements.into(TypeDescriptor.of(Row.class))
-                  .via(AvroUtils.getGenericRecordToRowFunction(schema.getBeamSchema())))
-          .setCoder(RowCoder.of(schema.getBeamSchema()));
+      return genericRecordToRowWithCoder(schema, genericRecords);
     } else {
       throw new IllegalStateException(
           "No valid format for input data is provided. Please, choose JSON or CSV.");
@@ -287,5 +277,14 @@ public class GcsIO {
       throw new IllegalStateException(
           "No valid format for output data is provided. Please, choose JSON or CSV.");
     }
+  }
+
+  public static PCollection<Row> genericRecordToRowWithCoder(SchemasUtils schema,
+      PCollection<GenericRecord> genericRecords) {
+    return genericRecords
+        .apply(
+            "GenericRecordToRow", MapElements.into(TypeDescriptor.of(Row.class))
+                .via(AvroUtils.getGenericRecordToRowFunction(schema.getBeamSchema())))
+        .setCoder(RowCoder.of(schema.getBeamSchema()));
   }
 }

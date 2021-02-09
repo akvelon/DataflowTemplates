@@ -148,7 +148,7 @@ public class ProtegrityDataTokenizationTest {
         PipelineOptionsFactory.create().as(ProtegrityDataTokenizationOptions.class);
     options.setDataSchemaGcsPath(SCHEMA_FILE_PATH);
     options.setInputGcsFilePattern(inputGcsFilePattern);
-    options.setInputGcsFileFormat(inputGcsFileFormat);
+    options.setInputFileFormat(inputGcsFileFormat);
     if (inputGcsFileFormat == FORMAT.CSV) {
       options.setCsvContainsHeaders(Boolean.FALSE);
     }

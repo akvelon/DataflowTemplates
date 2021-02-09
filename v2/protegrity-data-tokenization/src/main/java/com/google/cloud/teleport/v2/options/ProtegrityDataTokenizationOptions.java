@@ -70,4 +70,10 @@ public interface ProtegrityDataTokenizationOptions extends PipelineOptions,
   String getNonTokenizedDeadLetterGcsPath();
 
   void setNonTokenizedDeadLetterGcsPath(String nonTokenizedDeadLetterGcsPath);
+
+  @Description("File format of input files. Supported formats: JSON, CSV")
+  @Default.Enum("JSON")
+  GcsIO.FORMAT getInputFileFormat();
+
+  void setInputFileFormat(GcsIO.FORMAT inputGcsFileFormat);
 }
