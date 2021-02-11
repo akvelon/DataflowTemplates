@@ -73,7 +73,7 @@ public interface ProtegrityDataTokenizationOptions extends PipelineOptions,
 
   @Description("File format of input files. Supported formats: JSON, CSV")
   @Default.Enum("JSON")
-  GcsIO.FORMAT getInputFileFormat();
+  GcsIO.FORMAT getInputGcsFileFormat();
 
-  void setInputFileFormat(GcsIO.FORMAT inputGcsFileFormat);
+  void setInputGcsFileFormat(GcsIO.FORMAT inputGcsFileFormat);
 }

@@ -255,7 +255,7 @@ public class ProtegrityDataTokenization {
     if (options.getInputGcsFilePattern() != null) {
       records = new GcsIO(options).read(pipeline, schema);
     } else if (options.getPubsubTopic() != null) {
-      if (options.getInputFileFormat() == FORMAT.AVRO) {
+      if (options.getInputGcsFileFormat() == FORMAT.AVRO) {
         org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(schema.getBeamSchema());
         PCollection<GenericRecord> genericRecords = pipeline
             .apply("ReadAvroMessagesFromPubsub",
@@ -278,7 +278,7 @@ public class ProtegrityDataTokenization {
     Get collection of Rows
     */
     PCollection<Row> rows;
-    if (options.getInputFileFormat() == FORMAT.AVRO) {
+    if (options.getInputGcsFileFormat() == FORMAT.AVRO) {
       rows = (PCollection<Row>) records;
     } else {
       rows = ((PCollection<String>) records).apply(new JsonToBeamRow(options, schema));
