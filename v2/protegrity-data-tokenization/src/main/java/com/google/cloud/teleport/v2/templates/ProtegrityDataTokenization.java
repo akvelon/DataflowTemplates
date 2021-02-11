@@ -16,7 +16,7 @@
 package com.google.cloud.teleport.v2.templates;
 
 import static com.google.cloud.teleport.v2.transforms.io.BigQueryIO.write;
-import static com.google.cloud.teleport.v2.transforms.io.GcsIO.genericRecordToRowWithCoder;
+import static com.google.cloud.teleport.v2.transforms.io.GcsIO.avroToRowWithCoder;
 import static com.google.cloud.teleport.v2.utils.DurationUtils.parseDuration;
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
 
@@ -29,6 +29,7 @@ import com.google.cloud.teleport.v2.transforms.io.BigQueryIO;
 import com.google.cloud.teleport.v2.transforms.io.BigTableIO;
 import com.google.cloud.teleport.v2.transforms.io.GcsIO;
 import com.google.cloud.teleport.v2.transforms.io.GcsIO.FORMAT;
+import com.google.cloud.teleport.v2.utils.Employee;
 import com.google.cloud.teleport.v2.utils.RowToCsv;
 import com.google.cloud.teleport.v2.utils.SchemaUtils;
 import com.google.cloud.teleport.v2.utils.SchemasUtils;
@@ -37,7 +38,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
@@ -257,10 +257,11 @@ public class ProtegrityDataTokenization {
     } else if (options.getPubsubTopic() != null) {
       if (options.getInputGcsFileFormat() == FORMAT.AVRO) {
         org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(schema.getBeamSchema());
-        PCollection<GenericRecord> genericRecords = pipeline
+        PCollection<Employee> genericRecords = pipeline
             .apply("ReadAvroMessagesFromPubsub",
-                PubsubIO.readAvroGenericRecords(avroSchema).fromTopic(options.getPubsubTopic()));
-        records = genericRecordToRowWithCoder(schema, genericRecords);
+                PubsubIO.readAvrosWithBeamSchema(Employee.class)
+                    .fromTopic(options.getPubsubTopic()));
+        records = avroToRowWithCoder(schema, genericRecords);
       } else {
         records = pipeline
             .apply("ReadMessagesFromPubsub",

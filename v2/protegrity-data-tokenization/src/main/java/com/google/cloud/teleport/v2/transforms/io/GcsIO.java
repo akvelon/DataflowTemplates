@@ -19,6 +19,7 @@ import com.google.cloud.teleport.v2.coders.FailsafeElementCoder;
 import com.google.cloud.teleport.v2.options.ProtegrityDataTokenizationOptions;
 import com.google.cloud.teleport.v2.transforms.CsvConverters;
 import com.google.cloud.teleport.v2.transforms.ErrorConverters;
+import com.google.cloud.teleport.v2.utils.Employee;
 import com.google.cloud.teleport.v2.utils.RowToCsv;
 import com.google.cloud.teleport.v2.utils.SchemasUtils;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
@@ -285,6 +286,16 @@ public class GcsIO {
         .apply(
             "GenericRecordToRow", MapElements.into(TypeDescriptor.of(Row.class))
                 .via(AvroUtils.getGenericRecordToRowFunction(schema.getBeamSchema())))
+        .setCoder(RowCoder.of(schema.getBeamSchema()));
+  }
+
+  public static PCollection<Row> avroToRowWithCoder(SchemasUtils schema,
+      PCollection<Employee> genericRecords) {
+    org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(schema.getBeamSchema());
+    return genericRecords
+        .apply(
+            "EmployeeRecordsToRow", MapElements.into(TypeDescriptor.of(Row.class))
+                .via(AvroUtils.getToRowFunction(Employee.class, avroSchema)))
         .setCoder(RowCoder.of(schema.getBeamSchema()));
   }
 }
