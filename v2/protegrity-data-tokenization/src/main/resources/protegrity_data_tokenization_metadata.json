@@ -29,7 +29,7 @@
       "paramType": "TEXT",
       "isOptional": true,
       "regexes": [
-        "^(JSON|CSV|AVRO)$"
+        "^(JSON|CSV|AVRO|PARQUET)$"
       ]
     },
     {
@@ -120,7 +120,7 @@
       "paramType": "TEXT",
       "isOptional": true,
       "regexes": [
-        "^(JSON|CSV|AVRO)$"
+        "^(JSON|CSV|AVRO|PARQUET)$"
       ]
     },
     {

@@ -19,11 +19,11 @@ import com.google.cloud.teleport.v2.coders.FailsafeElementCoder;
 import com.google.cloud.teleport.v2.options.ProtegrityDataTokenizationOptions;
 import com.google.cloud.teleport.v2.transforms.CsvConverters;
 import com.google.cloud.teleport.v2.transforms.ErrorConverters;
+import com.google.cloud.teleport.v2.transforms.JsonToBeamRow;
 import com.google.cloud.teleport.v2.transforms.SerializableFunctions;
 import com.google.cloud.teleport.v2.utils.RowToCsv;
 import com.google.cloud.teleport.v2.utils.SchemasUtils;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
-import java.io.Serializable;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AvroCoder;
@@ -176,13 +176,13 @@ public class GcsIO {
     this.options = options;
   }
 
-  private PCollection<? extends Serializable> readJson(Pipeline pipeline) {
+  private PCollection<String> readJson(Pipeline pipeline) {
     return pipeline
         .apply("ReadJsonFromGCSFiles",
             TextIO.read().from(options.getInputGcsFilePattern()));
   }
 
-  private PCollection<? extends Serializable> readAvro(Pipeline pipeline, Schema beamSchema) {
+  private PCollection<Row> readAvro(Pipeline pipeline, Schema beamSchema) {
     org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(beamSchema);
     PCollection<GenericRecord> genericRecords = pipeline.apply(
         "ReadAvroFiles",
@@ -225,19 +225,6 @@ public class GcsIO {
             .build());
   }
 
-
-  private PCollection<? extends Serializable> readParquet(Pipeline pipeline, Schema beamSchema) {
-    org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(beamSchema);
-    PCollection<FileIO.ReadableFile> files = pipeline
-        .apply(FileIO.match().filepattern(options.getInputGcsFilePattern()))
-        .apply(FileIO.readMatches());
-
-    PCollection<GenericRecord> genericRecords = files.apply(ParquetIO.readFiles(avroSchema));
-    return genericRecords.apply(
-        "GenericRecordToRow", MapElements.into(TypeDescriptor.of(Row.class))
-            .via(AvroUtils.getGenericRecordToRowFunction(beamSchema)))
-        .setCoder(RowCoder.of(beamSchema));
-  }
 
   private POutput writeJson(PCollection<Row> outputCollection) {
     PCollection<String> jsons = outputCollection.apply("RowsToJSON", ToJson.of());
@@ -285,18 +272,21 @@ public class GcsIO {
             .withSuffix(".avro"));
   }
 
+
   private POutput writeParquet(PCollection<Row> outputCollection, Schema schema) {
     org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(schema);
-    return outputCollection.apply("RowToGenericRecord",
-        MapElements.into(TypeDescriptor.of(GenericRecord.class))
-            .via(AvroUtils.getRowToGenericRecordFunction(avroSchema)))
-        .setCoder(AvroCoder.of(GenericRecord.class, avroSchema))
-        .apply(FileIO.<GenericRecord>write().via(ParquetIO.sink(avroSchema))
-            .to(options.getOutputGcsDirectory()));
+    PCollection<GenericRecord> genericRecords = outputCollection
+        .apply(
+            "RowToGenericRecord", MapElements.into(TypeDescriptor.of(GenericRecord.class))
+                .via(AvroUtils.getRowToGenericRecordFunction(avroSchema)))
+        .setCoder(AvroCoder.of(GenericRecord.class, avroSchema));
+    return genericRecords.apply(FileIO.<GenericRecord>write()
+        .via(ParquetIO.sink(avroSchema))
+        .to(options.getOutputGcsDirectory()).withSuffix(".parquet").withNumShards(1));
   }
 
 
-  public PCollection<? extends Serializable> read(Pipeline pipeline, SchemasUtils schema) {
+  public PCollection<Row> read(Pipeline pipeline, SchemasUtils schema) {
     switch (options.getInputGcsFileFormat()) {
       case CSV:
         /*
@@ -325,9 +315,11 @@ public class GcsIO {
         return jsons.get(PROCESSING_OUT)
             .apply(
                 "GetJson",
-                MapElements.into(TypeDescriptors.strings()).via(FailsafeElement::getPayload));
+                MapElements.into(TypeDescriptors.strings()).via(FailsafeElement::getPayload))
+            .apply(new JsonToBeamRow(options.getNonTokenizedDeadLetterGcsPath(), schema));
       case JSON:
-        return readJson(pipeline);
+        return readJson(pipeline)
+            .apply(new JsonToBeamRow(options.getNonTokenizedDeadLetterGcsPath(), schema));
       case AVRO:
         return readAvro(pipeline, schema.getBeamSchema());
       case PARQUET:
@@ -337,6 +329,18 @@ public class GcsIO {
             "No valid format for input data is provided. Please, choose JSON or CSV.");
 
     }
+  }
+
+  private PCollection<Row> readParquet(Pipeline pipeline, Schema beamSchema) {
+    org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(beamSchema);
+
+    PCollection<GenericRecord> parquetRecords =
+        pipeline.apply(ParquetIO.read(avroSchema).from(options.getInputGcsFilePattern()));
+
+    return parquetRecords
+        .apply("GenericRecordsToRow", MapElements.into(TypeDescriptor.of(Row.class))
+            .via(AvroUtils.getGenericRecordToRowFunction(beamSchema)))
+        .setCoder(RowCoder.of(beamSchema));
   }
 
   public POutput write(PCollection<Row> input, Schema schema) {
