@@ -63,12 +63,16 @@ public class ProtegrityDataProtectors {
    * The {@link ProtegrityDataProtectors.RowToTokenizedRow} transform converts {@link Row} to {@link
    * TableRow} objects. The transform accepts a {@link FailsafeElement} object so the original
    * payload of the incoming record can be maintained across multiple series of transforms.
+   *
+   * Environment variables:
+   * MAX_BUFFERING_DURATION_MS - Max duration (in milliseconds) of buffering rows in {@link GroupIntoBatches}
    */
   @AutoValue
   public abstract static class RowToTokenizedRow<T>
       extends PTransform<PCollection<KV<Integer, Row>>, PCollectionTuple> {
 
-    private static final Integer MAX_BUFFERING = 100;
+    private static final Long MAX_BUFFERING_DURATION_MS =
+        Long.valueOf(System.getenv().getOrDefault("MAX_BUFFERING_DURATION_MS", "100"));
 
     public static <T> RowToTokenizedRow.Builder<T> newBuilder() {
       return new AutoValue_ProtegrityDataProtectors_RowToTokenizedRow.Builder<>();
@@ -95,7 +99,7 @@ public class ProtegrityDataProtectors {
           RowCoder.of(schema())
       );
 
-      Duration maxBuffering = Duration.millis(MAX_BUFFERING);
+      Duration maxBuffering = Duration.millis(MAX_BUFFERING_DURATION_MS);
       PCollectionTuple pCollectionTuple = inputRows
           .apply("GroupRowsIntoBatches",
               GroupIntoBatches.<Integer, Row>ofSize(batchSize())
