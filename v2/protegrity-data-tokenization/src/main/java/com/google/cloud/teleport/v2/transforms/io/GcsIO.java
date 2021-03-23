@@ -280,10 +280,19 @@ public class GcsIO {
   public PCollection<Row> read(Pipeline pipeline, SchemasUtils schema) {
     switch (options.getInputGcsFileFormat()) {
       case CSV:
+        /*
+         * Step 1: Read CSV file(s) from Cloud Storage using {@link CsvConverters.ReadCsv}.
+         */
         PCollectionTuple csvLines = readCsv(pipeline);
+        /*
+         * Step 2: Convert lines to Json.
+         */
         PCollectionTuple jsons = csvLineToJson(csvLines, schema.getJsonBeamSchema());
 
         if (options.getNonTokenizedDeadLetterGcsPath() != null) {
+          /*
+           * Step 3: Write jsons to dead-letter gcs that were not successfully processed.
+           */
           jsons.get(PROCESSING_DEADLETTER_OUT)
               .apply(
                   "WriteCsvConversionErrorsToGcs",
@@ -292,7 +301,9 @@ public class GcsIO {
                       .setTranslateFunction(SerializableFunctions.getCsvErrorConverter())
                       .build());
         }
-
+        /*
+         * Step 4: Get jsons that were successfully processed.
+         */
         return jsons.get(PROCESSING_OUT)
             .apply(
                 "GetJson",
