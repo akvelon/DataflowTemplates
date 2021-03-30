@@ -8,7 +8,7 @@ Supported data formats:
 
 - JSON
 - CSV
-- Avro
+- [Avro](#Avro-notes)
 
 Supported input sources:
 
@@ -26,7 +26,7 @@ Supported data schema format:
 - JSON with an array of fields described in BigQuery format
 
 In the main scenario, the template will create an Apache Beam pipeline that will read data in CSV,
-JSON or Avro (only for filesystem inputs) format from a specified input source, send the data to an
+JSON or [Avro](#Avro-notes) (only for filesystem inputs) format from a specified input source, send the data to an
 external processing server, receive processed data, and write it into a specified output sink.
 
 ## Requirements
@@ -235,6 +235,12 @@ adding support for:
 
 Following the template design, it is recommended that inputs are transformed into Beam Row and
 outputs are transformed from Beam Row.
+
+## Avro notes:
+
+* For the correct work of the pipeline, you must check that provided Data Schema match the data 
+  that comes from Avro. Otherwise the pipelinу will fail with runtime error.
+* The deadletters will not be saved when working with Avro.
 
 ### Ideas for Extensions
 
