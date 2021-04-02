@@ -8,7 +8,7 @@ Supported data formats:
 
 - JSON
 - CSV
-- [Avro](#Avro-notes:)
+- [Avro](#Avro-notes)
 
 Supported input sources:
 
