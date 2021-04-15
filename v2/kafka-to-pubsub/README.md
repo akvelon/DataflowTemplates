@@ -230,7 +230,7 @@ For SCRAM configuration
   
 Kafka Consumer configuration:
 
-You may put in JSON config any [supported](https://docs.confluent.io/platform/current/installation/configuration/consumer-configs.html) configuration for Kafka Consumer 
+You may put in JSON config any [supported](https://kafka.apache.org/documentation/#consumerconfigs) configuration for Kafka Consumer 
 
 For example:
 
