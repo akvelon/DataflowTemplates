@@ -42,13 +42,17 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.util.EntityUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.security.scram.internals.ScramMechanism;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Utilities for construction of Kafka Consumer. */
+/**
+ * Utilities for construction of Kafka Consumer.
+ */
 public class Utils {
 
   /* Logger for class.*/
@@ -58,7 +62,7 @@ public class Utils {
    * Retrieves all credentials from HashiCorp Vault secret storage.
    *
    * @param secretStoreUrl url to the secret storage that contains a credentials for Kafka
-   * @param token Vault token to access the secret storage
+   * @param token          Vault token to access the secret storage
    * @return credentials for Kafka consumer config
    */
   public static Map<String, Map<String, String>> getKafkaCredentialsFromVault(
@@ -131,7 +135,11 @@ public class Utils {
   public static Map<String, Object> configureKafka(Map<String, String> props) {
     // Create the configuration for Kafka
     Map<String, Object> config = new HashMap<>();
-    if (props != null && props.containsKey(USERNAME) && props.containsKey(PASSWORD)) {
+    if (props == null) {
+      return config;
+    }
+
+    if (props.containsKey(USERNAME) && props.containsKey(PASSWORD)) {
       String saslMechanism = props.get(SaslConfigs.SASL_MECHANISM);
       if (Objects.equals(saslMechanism, ScramMechanism.SCRAM_SHA_256.mechanismName()) ||
           Objects.equals(saslMechanism, ScramMechanism.SCRAM_SHA_512.mechanismName())
@@ -150,9 +158,23 @@ public class Utils {
               props.get(USERNAME), props.get(PASSWORD)));
     }
 
-    if (props != null && props.containsKey(ConsumerConfig.GROUP_ID_CONFIG)) {
-      config.put(ConsumerConfig.GROUP_ID_CONFIG, props.get(ConsumerConfig.GROUP_ID_CONFIG));
+    Map<String, String> consumerConfig = new HashMap<>();
+    for (String configName : ConsumerConfig.configNames()) {
+      if (props.containsKey(configName)) {
+        consumerConfig.put(configName, props.get(configName));
+      }
     }
+    Map<String, ConfigValue> validationResult = ConsumerConfig.configDef()
+        .validateAll(consumerConfig);
+
+    validationResult.forEach((key, value) -> {
+      if (value.errorMessages().isEmpty()) {
+        config.put(key, value);
+      }
+      else {
+        throw new ConfigException(key, value, value.errorMessages().toString());
+      }
+    });
 
     return config;
   }
@@ -239,10 +261,12 @@ public class Utils {
                 + "Trying to initiate an unauthorized connection.");
       }
 
-      // Group ID for the Kafka consumer
-      if (credentials.has(ConsumerConfig.GROUP_ID_CONFIG)) {
-        credentialMap.get(KAFKA_CREDENTIALS).put(ConsumerConfig.GROUP_ID_CONFIG,
-            credentials.get(ConsumerConfig.GROUP_ID_CONFIG).getAsString());
+      // Kafka consumer configs
+      for (String configName : ConsumerConfig.configNames()) {
+        if (credentials.has(configName)) {
+          credentialMap.get(KAFKA_CREDENTIALS)
+              .put(configName, credentials.get(configName).getAsString());
+        }
       }
 
       // SSL truststore, keystore, and password
