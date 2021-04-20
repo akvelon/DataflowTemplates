@@ -27,6 +27,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -157,25 +158,10 @@ public class Utils {
                   + "username=\"%s\" password=\"%s\";",
               props.get(USERNAME), props.get(PASSWORD)));
     }
-
-    Map<String, String> consumerConfig = new HashMap<>();
-    for (String configName : ConsumerConfig.configNames()) {
-      if (props.containsKey(configName)) {
-        consumerConfig.put(configName, props.get(configName));
-      }
-    }
-    Map<String, ConfigValue> validationResult = ConsumerConfig.configDef()
-        .validateAll(consumerConfig);
-
-    validationResult.forEach((key, value) -> {
-      if (value.errorMessages().isEmpty()) {
-        config.put(key, value);
-      }
-      else {
-        throw new ConfigException(key, value, value.errorMessages().toString());
-      }
-    });
-
+    ConsumerConfig.configNames().stream()
+        .filter(props::containsKey)
+        .map(configName -> validateConfigValue(configName, props.get(configName)))
+        .forEach(configName -> config.put(configName, props.get(configName)));
     return config;
   }
 
@@ -292,5 +278,14 @@ public class Utils {
       }
     }
     return credentialMap;
+  }
+
+  private static String validateConfigValue(String key, String value) {
+    Map<String, String> property = Collections.singletonMap(key, value);
+    ConfigValue configValue = ConsumerConfig.configDef().validate(property).get(0);
+    if (!configValue.errorMessages().isEmpty()) {
+      throw new ConfigException(key, configValue, configValue.errorMessages().toString());
+    }
+    return value;
   }
 }
