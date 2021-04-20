@@ -51,9 +51,7 @@ import org.apache.kafka.common.security.scram.internals.ScramMechanism;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Utilities for construction of Kafka Consumer.
- */
+/** Utilities for construction of Kafka Consumer. */
 public class Utils {
 
   /* Logger for class.*/
@@ -63,7 +61,7 @@ public class Utils {
    * Retrieves all credentials from HashiCorp Vault secret storage.
    *
    * @param secretStoreUrl url to the secret storage that contains a credentials for Kafka
-   * @param token          Vault token to access the secret storage
+   * @param token Vault token to access the secret storage
    * @return credentials for Kafka consumer config
    */
   public static Map<String, Map<String, String>> getKafkaCredentialsFromVault(
@@ -248,12 +246,11 @@ public class Utils {
       }
 
       // Kafka consumer configs
-      for (String configName : ConsumerConfig.configNames()) {
-        if (credentials.has(configName)) {
-          credentialMap.get(KAFKA_CREDENTIALS)
-              .put(configName, credentials.get(configName).getAsString());
-        }
-      }
+      ConsumerConfig.configNames().stream()
+          .filter(credentials::has)
+          .forEach(configName -> credentialMap
+              .get(KAFKA_CREDENTIALS)
+              .put(configName, credentials.get(configName).getAsString()));
 
       // SSL truststore, keystore, and password
       try {
