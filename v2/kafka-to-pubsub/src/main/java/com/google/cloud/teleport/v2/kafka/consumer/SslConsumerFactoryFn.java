@@ -111,8 +111,8 @@ public class SslConsumerFactoryFn
         LOG.info("Contents from GCS file {} was written in {}", gcsFilePath, outputFilePath);
         return;
       }
+      LOG.warn("Failed to write file, {} retries remaining", 5 - i);
       try {
-        LOG.warn("Failed to write file, {} retries remaining", 5 - i);
         Thread.sleep(5);
       } catch (InterruptedException e) {
         LOG.error(e.getMessage());
