@@ -51,9 +51,7 @@ import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.gcp.bigquery.WriteResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.MapElements;
-import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
@@ -278,14 +276,8 @@ public class ProtegrityDataTokenization {
           .apply("ReadMessagesFromPubsub",
               PubsubIO.readStrings().fromSubscription(options.getInputSubscription()))
           .apply("StringToFailsafe",
-              ParDo.of(
-                  new DoFn<String, FailsafeElement<String, String>>() {
-                    @ProcessElement
-                    public void processElement(ProcessContext context) {
-                      String value = context.element();
-                      context.output(FailsafeElement.of(value, value));
-                    }
-                  }))
+              MapElements.into(FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor())
+                  .via((String element) -> FailsafeElement.of(element, element)))
           .apply("FailsafeJsonToBeamRow",
               BeamRowConverters.FailsafeJsonToBeamRow.<String>newBuilder()
                   .setBeamSchema(schema.getBeamSchema())

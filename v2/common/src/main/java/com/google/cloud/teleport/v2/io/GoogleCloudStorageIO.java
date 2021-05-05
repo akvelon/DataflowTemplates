@@ -1,5 +1,6 @@
 package com.google.cloud.teleport.v2.io;
 
+import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.FAILSAFE_ELEMENT_CODER;
 import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.TRANSFORM_DEADLETTER_OUT;
 import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.TRANSFORM_OUT;
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkNotNull;
@@ -27,7 +28,6 @@ import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.schemas.utils.AvroUtils;
-import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.JsonToRow;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -431,15 +431,10 @@ public class GoogleCloudStorageIO {
           .apply(
               "GetJson",
               MapElements.into(TypeDescriptors.strings()).via(FailsafeElement::getPayload))
+
           .apply("StringToFailsafe",
-              ParDo.of(
-                  new DoFn<String, FailsafeElement<String, String>>() {
-                    @ProcessElement
-                    public void processElement(ProcessContext context) {
-                      String value = context.element();
-                      context.output(FailsafeElement.of(value, value));
-                    }
-                  }))
+              MapElements.into(FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor())
+                  .via((String element) -> FailsafeElement.of(element, element)))
           .apply("FailsafeJsonToBeamRow",
               BeamRowConverters.FailsafeJsonToBeamRow.<String>newBuilder()
                   .setBeamSchema(getBeamSchema())
@@ -500,14 +495,8 @@ public class GoogleCloudStorageIO {
       return input.apply("ReadJsonFromGCSFiles",
           TextIO.read().from(getInputOptions().getInputGcsFilePattern()))
           .apply("StringToFailsafe",
-              ParDo.of(
-                  new DoFn<String, FailsafeElement<String, String>>() {
-                    @ProcessElement
-                    public void processElement(ProcessContext context) {
-                      String value = context.element();
-                      context.output(FailsafeElement.of(value, value));
-                    }
-                  }))
+              MapElements.into(FAILSAFE_ELEMENT_CODER.getEncodedTypeDescriptor())
+                  .via((String element) -> FailsafeElement.of(element, element)))
           .apply("FailsafeJsonToBeamRow",
               BeamRowConverters.FailsafeJsonToBeamRow.<String>newBuilder()
                   .setBeamSchema(getBeamSchema())
