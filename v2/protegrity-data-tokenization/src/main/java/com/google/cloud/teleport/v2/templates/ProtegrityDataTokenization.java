@@ -16,20 +16,22 @@
 package com.google.cloud.teleport.v2.templates;
 
 import static com.google.cloud.teleport.v2.templates.ProtegrityDataTokenizationConstants.GCS_WRITING_WINDOW_DURATION;
+import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.FAILSAFE_ELEMENT_CODER;
+import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.TRANSFORM_DEADLETTER_OUT;
+import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.TRANSFORM_OUT;
 import static com.google.cloud.teleport.v2.transforms.io.BigQueryIO.write;
 import static com.google.cloud.teleport.v2.utils.DurationUtils.parseDuration;
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkArgument;
 
 import com.google.cloud.teleport.v2.coders.FailsafeElementCoder;
-import com.google.cloud.teleport.v2.io.GoogleCloudStorageIO;
-import com.google.cloud.teleport.v2.io.GoogleCloudStorageIO.JsonToBeamRow;
 import com.google.cloud.teleport.v2.io.BigTableIO;
+import com.google.cloud.teleport.v2.io.GoogleCloudStorageIO;
 import com.google.cloud.teleport.v2.options.ProtegrityDataTokenizationOptions;
+import com.google.cloud.teleport.v2.transforms.BeamRowConverters;
 import com.google.cloud.teleport.v2.transforms.CsvConverters.RowToCsv;
 import com.google.cloud.teleport.v2.transforms.ErrorConverters;
 import com.google.cloud.teleport.v2.transforms.ProtegrityDataProtectors.RowToTokenizedRow;
 import com.google.cloud.teleport.v2.transforms.io.BigQueryIO;
-import com.google.cloud.teleport.v2.transforms.io.BigTableIO;
 import com.google.cloud.teleport.v2.utils.FailsafeElementToStringCsvSerializableFunction;
 import com.google.cloud.teleport.v2.utils.SchemaUtils;
 import com.google.cloud.teleport.v2.utils.SchemasUtils;
@@ -43,15 +45,15 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.KvCoder;
-import org.apache.beam.sdk.coders.NullableCoder;
 import org.apache.beam.sdk.coders.RowCoder;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.gcp.bigquery.WriteResult;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.MapElements;
+import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
@@ -165,13 +167,6 @@ public class ProtegrityDataTokenization {
    */
   private static final Logger LOG = LoggerFactory.getLogger(ProtegrityDataTokenization.class);
 
-  /**
-   * String/String Coder for FailsafeElement.
-   */
-  public static final FailsafeElementCoder<String, String> FAILSAFE_ELEMENT_CODER =
-      FailsafeElementCoder.of(
-          NullableCoder.of(StringUtf8Coder.of()), NullableCoder.of(StringUtf8Coder.of()));
-
 
   /**
    * The default suffix for error tables if dead letter table is not specified.
@@ -279,11 +274,36 @@ public class ProtegrityDataTokenization {
               "No valid format for input data is provided. Please, choose JSON, CSV or AVRO.");
       }
     } else if (options.getInputSubscription() != null) {
-      records = pipeline
+      PCollectionTuple recordsTuple = pipeline
           .apply("ReadMessagesFromPubsub",
               PubsubIO.readStrings().fromSubscription(options.getInputSubscription()))
-          .apply("TransformToBeamRow",
-              new JsonToBeamRow(schema.getBeamSchema()));
+          .apply("StringToFailsafe",
+              ParDo.of(
+                  new DoFn<String, FailsafeElement<String, String>>() {
+                    @ProcessElement
+                    public void processElement(ProcessContext context) {
+                      String value = context.element();
+                      context.output(FailsafeElement.of(value, value));
+                    }
+                  }))
+          .apply("FailsafeJsonToBeamRow",
+              BeamRowConverters.FailsafeJsonToBeamRow.<String>newBuilder()
+                  .setBeamSchema(schema.getBeamSchema())
+                  .setSuccessTag(TRANSFORM_OUT)
+                  .setFailureTag(TRANSFORM_DEADLETTER_OUT)
+                  .build()
+          );
+
+      recordsTuple
+          .get(TRANSFORM_DEADLETTER_OUT)
+          .apply("WriteCsvConversionErrorsToGcs",
+              ErrorConverters.WriteErrorsToTextIO.<String, String>newBuilder()
+                  .setErrorWritePath(options.getNonTokenizedDeadLetterGcsPath())
+                  .setTranslateFunction(new FailsafeElementToStringCsvSerializableFunction<>())
+                  .build());
+
+      records = recordsTuple.get(TRANSFORM_OUT);
+
       if (options.getOutputGcsDirectory() != null) {
         records = records
             .apply(

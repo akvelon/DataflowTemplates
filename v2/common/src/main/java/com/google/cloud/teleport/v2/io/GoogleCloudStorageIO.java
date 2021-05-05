@@ -1,5 +1,7 @@
 package com.google.cloud.teleport.v2.io;
 
+import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.TRANSFORM_DEADLETTER_OUT;
+import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.TRANSFORM_OUT;
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.auto.value.AutoValue;
@@ -8,6 +10,7 @@ import com.google.cloud.teleport.v2.options.CsvOptions;
 import com.google.cloud.teleport.v2.options.GcsCommonOptions;
 import com.google.cloud.teleport.v2.options.GcsCommonOptions.ReadOptions;
 import com.google.cloud.teleport.v2.options.GcsCommonOptions.WriteOptions;
+import com.google.cloud.teleport.v2.transforms.BeamRowConverters;
 import com.google.cloud.teleport.v2.transforms.CsvConverters;
 import com.google.cloud.teleport.v2.transforms.CsvConverters.RowToCsv;
 import com.google.cloud.teleport.v2.transforms.ErrorConverters;
@@ -24,6 +27,7 @@ import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.schemas.utils.AvroUtils;
+import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.JsonToRow;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -427,9 +431,22 @@ public class GoogleCloudStorageIO {
           .apply(
               "GetJson",
               MapElements.into(TypeDescriptors.strings()).via(FailsafeElement::getPayload))
-          .apply(
-              "TransformToBeamRow",
-              new JsonToBeamRow(getBeamSchema()));
+          .apply("StringToFailsafe",
+              ParDo.of(
+                  new DoFn<String, FailsafeElement<String, String>>() {
+                    @ProcessElement
+                    public void processElement(ProcessContext context) {
+                      String value = context.element();
+                      context.output(FailsafeElement.of(value, value));
+                    }
+                  }))
+          .apply("FailsafeJsonToBeamRow",
+              BeamRowConverters.FailsafeJsonToBeamRow.<String>newBuilder()
+                  .setBeamSchema(getBeamSchema())
+                  .setSuccessTag(TRANSFORM_OUT)
+                  .setFailureTag(TRANSFORM_DEADLETTER_OUT)
+                  .build()
+          ).get(TRANSFORM_OUT);
     }
 
     @AutoValue.Builder
@@ -482,11 +499,22 @@ public class GoogleCloudStorageIO {
 
       return input.apply("ReadJsonFromGCSFiles",
           TextIO.read().from(getInputOptions().getInputGcsFilePattern()))
-          .apply(
-              "TransformToBeamRow",
-              new JsonToBeamRow(getBeamSchema()));
-
-
+          .apply("StringToFailsafe",
+              ParDo.of(
+                  new DoFn<String, FailsafeElement<String, String>>() {
+                    @ProcessElement
+                    public void processElement(ProcessContext context) {
+                      String value = context.element();
+                      context.output(FailsafeElement.of(value, value));
+                    }
+                  }))
+          .apply("FailsafeJsonToBeamRow",
+              BeamRowConverters.FailsafeJsonToBeamRow.<String>newBuilder()
+                  .setBeamSchema(getBeamSchema())
+                  .setSuccessTag(TRANSFORM_OUT)
+                  .setFailureTag(TRANSFORM_DEADLETTER_OUT)
+                  .build()
+          ).get(TRANSFORM_OUT);
     }
 
     @AutoValue.Builder
