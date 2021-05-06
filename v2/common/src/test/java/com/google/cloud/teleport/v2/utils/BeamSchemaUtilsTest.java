@@ -104,6 +104,10 @@ public class BeamSchemaUtilsTest {
     assertEquals(9, schema.indexOf("boolean"));
     assertEquals("boolean", schema.getField(9).getName());
     assertEquals(FieldType.BOOLEAN, schema.getField(9).getType());
+
+    assertEquals(10, schema.indexOf("bytes"));
+    assertEquals("bytes", schema.getField(10).getName());
+    assertEquals(FieldType.BYTES, schema.getField(10).getType());
   }
 
   @Test
