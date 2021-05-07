@@ -19,6 +19,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Enums;
+import com.google.common.base.Optional;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.LinkedList;
@@ -55,7 +57,8 @@ public class BeamSchemaUtils {
   private static Schema fromJson(JsonParser jsonParser) throws IOException, SchemaParseException {
     JsonNode jsonNodes = MAPPER.readTree(jsonParser);
     if (!jsonNodes.isArray()) {
-      throw new SchemaParseException("Provided schema must be in \"[{}, ...]\" format");
+      throw new SchemaParseException(
+          "Provided schema must be in \"[{\"type\": \"INT32\", \"name\": \"fieldName\"}, ...]\" format");
     }
     return new Schema(getFieldsfromJsonNode(jsonNodes));
 
@@ -66,6 +69,9 @@ public class BeamSchemaUtils {
       throws SchemaParseException {
     List<Field> fields = new LinkedList<>();
     for (JsonNode node : jsonNode) {
+      if (!node.isObject()) {
+        throw new SchemaParseException("Node must be object: "+ node.toString());
+      }
       String type = getText(node, "type", "type is missed");
       String name = getText(node, "name", "name is missed");
       fields.add(Field.of(name, stringToFieldType(type)));
@@ -73,9 +79,12 @@ public class BeamSchemaUtils {
     return fields;
   }
 
-  private static FieldType stringToFieldType(String string) {
-    TypeName typeName = TypeName.valueOf(string);
-    return FieldType.of(typeName);
+  private static FieldType stringToFieldType(String string) throws SchemaParseException {
+    Optional<TypeName> typeName = Enums.getIfPresent(TypeName.class, string);
+    if (typeName.isPresent()) {
+      return FieldType.of(typeName.get());
+    }
+    throw new SchemaParseException(String.format("Provided type \"%s\" does not exist", string));
   }
 
   private static String getOptionalText(JsonNode node, String key) {

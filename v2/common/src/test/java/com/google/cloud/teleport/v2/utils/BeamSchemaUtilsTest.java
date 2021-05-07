@@ -139,12 +139,22 @@ public class BeamSchemaUtilsTest {
   @Test
   public void testInvalidFormat() throws SchemaParseException {
     exceptionRule.expect(SchemaParseException.class);
-    exceptionRule.expectMessage("Provided schema must be in \"[{}, ...]\" format");
+    exceptionRule.expectMessage(
+        "Provided schema must be in \"[{\"type\": \"INT32\", \"name\": \"fieldName\"}, ...]\" format");
     BeamSchemaUtils.fromJson("{\"name\": \"bytes\",\"type\": \"BYTES\"}");
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testInvalidType() throws SchemaParseException {
+    exceptionRule.expect(SchemaParseException.class);
+    exceptionRule.expectMessage("Provided type \"INVALID\" does not exist");
     BeamSchemaUtils.fromJson("[{\"name\": \"bytes\",\"type\": \"INVALID\"}]");
+  }
+
+  @Test
+  public void testInvalidNodeFormat() throws SchemaParseException {
+    exceptionRule.expect(SchemaParseException.class);
+    exceptionRule.expectMessage("Node must be object: [{\"name\":\"bytes\",\"type\":\"BYTES\"}]");
+    BeamSchemaUtils.fromJson("[[{\"name\": \"bytes\",\"type\": \"BYTES\"}]]");
   }
 }
