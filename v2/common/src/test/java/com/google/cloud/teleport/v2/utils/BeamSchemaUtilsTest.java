@@ -17,15 +17,32 @@ package com.google.cloud.teleport.v2.utils;
 
 import static org.junit.Assert.assertEquals;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.teleport.v2.utils.BeamSchemaUtils.SchemaParseException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.schemas.Schema.FieldType;
+import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+/**
+ * Tests for {@link BeamSchemaUtils}
+ */
 public class BeamSchemaUtilsTest {
 
+  @Rule
+  public ExpectedException exceptionRule = ExpectedException.none();
+  static final String EXPECTED_FIELD_NAME = "expectedFieldName";
+  static ObjectMapper mapper;
   public static String jsonSchema = "[\n"
       + "  {\n"
       + "    \"name\": \"byte\",\n"
@@ -72,11 +89,15 @@ public class BeamSchemaUtilsTest {
       + "    \"type\": \"BYTES\"\n"
       + "  }\n"
       + "]\n";
-  @Rule
-  public ExpectedException exceptionRule = ExpectedException.none();
+
+  @BeforeClass
+  public static void before() {
+    mapper = new ObjectMapper();
+  }
+
 
   @Test
-  public void testFromJson() throws SchemaParseException {
+  public void testFromJson() throws SchemaParseException, IOException {
     Schema schema = BeamSchemaUtils.fromJson(jsonSchema);
     assertEquals(11, schema.getFieldCount());
 
@@ -126,65 +147,37 @@ public class BeamSchemaUtilsTest {
   }
 
   @Test
-  public void testMissedField() throws SchemaParseException {
-    exceptionRule.expect(SchemaParseException.class);
+  public void testMissedField() throws SchemaParseException, IOException {
+    exceptionRule.expect(NullPointerException.class);
     exceptionRule.expectMessage("type is missed: {\"name\":\"testName\"}");
     BeamSchemaUtils.fromJson("[{\"name\": \"testName\"}]");
 
-    exceptionRule.expect(SchemaParseException.class);
+    exceptionRule.expect(NullPointerException.class);
     exceptionRule.expectMessage("name is missed: {\"type\":\"testType\"}");
     BeamSchemaUtils.fromJson("[{\"type\": \"testType\"}]");
   }
 
   @Test
-  public void testInvalidFormat() throws SchemaParseException {
+  public void testInvalidFormat() throws SchemaParseException, IOException {
     exceptionRule.expect(SchemaParseException.class);
     exceptionRule.expectMessage(
-        "Provided schema must be in \"[{\"type\": \"INT32\", \"name\": \"fieldName\"}, ...]\" format");
+        "Provided schema must be in \"[{\"type\": \"fieldTypeName\", \"name\": \"fieldName\"}, ...]\" format");
     BeamSchemaUtils.fromJson("{\"name\": \"bytes\",\"type\": \"BYTES\"}");
   }
 
   @Test
-  public void testInvalidType() throws SchemaParseException {
+  public void testInvalidType() throws SchemaParseException, IOException {
     exceptionRule.expect(SchemaParseException.class);
     exceptionRule.expectMessage("Provided type \"INVALID\" does not exist");
     BeamSchemaUtils.fromJson("[{\"name\": \"bytes\",\"type\": \"INVALID\"}]");
   }
 
   @Test
-  public void testInvalidNodeFormat() throws SchemaParseException {
+  public void testInvalidNodeFormat() throws SchemaParseException, IOException {
     exceptionRule.expect(SchemaParseException.class);
     exceptionRule.expectMessage("Node must be object: [{\"name\":\"bytes\",\"type\":\"BYTES\"}]");
     BeamSchemaUtils.fromJson("[[{\"name\": \"bytes\",\"type\": \"BYTES\"}]]");
   }
-}
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import org.apache.beam.sdk.schemas.Schema;
-import org.apache.beam.sdk.schemas.Schema.FieldType;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-/**
- * Tests for {@link BeamSchemaUtils}
- */
-public class BeamSchemaUtilsTest {
-
-  static final String EXPECTED_FIELD_NAME = "expectedFieldName";
-  static ObjectMapper mapper;
-
-  @BeforeClass
-  public static void before() {
-    mapper = new ObjectMapper();
-  }
-
 
   @Test
   public void givenBeamSchema_whenBYTEField_thenCorrectJsonString() throws JsonProcessingException {

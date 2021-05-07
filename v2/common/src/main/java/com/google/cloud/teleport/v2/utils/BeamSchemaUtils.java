@@ -15,6 +15,10 @@
  */
 package com.google.cloud.teleport.v2.utils;
 
+import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions.checkNotNull;
+
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -30,11 +34,7 @@ import org.apache.beam.sdk.schemas.Schema.Field;
 import org.apache.beam.sdk.schemas.Schema.FieldType;
 import org.apache.beam.sdk.schemas.Schema.TypeName;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.beam.sdk.schemas.Schema;
-import org.apache.beam.sdk.schemas.Schema.Field;
+
 
 /**
  * BeamSchemaUtils has utilities scope for convert {@link Schema} into/from various formats
@@ -43,6 +43,8 @@ public class BeamSchemaUtils {
 
   public static final String FIELD_NAME = "name";
   public static final String FIELD_TYPE = "type";
+  static final JsonFactory FACTORY = new JsonFactory();
+  static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
 
   /**
    * Convert {@link Schema} into json string
@@ -51,11 +53,10 @@ public class BeamSchemaUtils {
    * @return json string as {@link String}
    */
   public static String beamSchemaToJson(Schema beamSchema) {
-    ObjectMapper mapper = new ObjectMapper();
-    ArrayNode beamSchemaJsonNode = mapper.createArrayNode();
+    ArrayNode beamSchemaJsonNode = MAPPER.createArrayNode();
 
     for (Field field : beamSchema.getFields()) {
-      ObjectNode fieldJsonNode = mapper.createObjectNode();
+      ObjectNode fieldJsonNode = MAPPER.createObjectNode();
       fieldJsonNode.put(FIELD_NAME, field.getName());
       fieldJsonNode.put(FIELD_TYPE, field.getType().getTypeName().toString());
 
@@ -65,9 +66,6 @@ public class BeamSchemaUtils {
     return beamSchemaJsonNode.toString();
   }
 
-  static JsonFactory FACTORY = new JsonFactory();
-  static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
-
   /**
    * Parse provided json string to {@link Schema}.
    *
@@ -76,13 +74,9 @@ public class BeamSchemaUtils {
    * @param jsonString json compatible string
    * @return converted {@link Schema}
    */
-  public static Schema fromJson(String jsonString) throws SchemaParseException {
-    try {
-      try (JsonParser jsonParser = FACTORY.createParser(new StringReader(jsonString))) {
-        return fromJson(jsonParser);
-      }
-    } catch (IOException error) {
-      throw new SchemaParseException(error);
+  public static Schema fromJson(String jsonString) throws SchemaParseException, IOException {
+    try (JsonParser jsonParser = FACTORY.createParser(new StringReader(jsonString))) {
+      return fromJson(jsonParser);
     }
   }
 
@@ -91,7 +85,7 @@ public class BeamSchemaUtils {
     JsonNode jsonNodes = MAPPER.readTree(jsonParser);
     if (!jsonNodes.isArray()) {
       throw new SchemaParseException(
-          "Provided schema must be in \"[{\"type\": \"INT32\", \"name\": \"fieldName\"}, ...]\" format");
+          "Provided schema must be in \"[{\"type\": \"fieldTypeName\", \"name\": \"fieldName\"}, ...]\" format");
     }
     return new Schema(getFieldsfromJsonNode(jsonNodes));
 
@@ -103,10 +97,10 @@ public class BeamSchemaUtils {
     List<Field> fields = new LinkedList<>();
     for (JsonNode node : jsonNode) {
       if (!node.isObject()) {
-        throw new SchemaParseException("Node must be object: "+ node.toString());
+        throw new SchemaParseException("Node must be object: " + node.toString());
       }
-      String type = getText(node, "type", "type is missed");
-      String name = getText(node, "name", "name is missed");
+      String type = getText(node, FIELD_TYPE, "type is missed");
+      String name = getText(node, FIELD_NAME, "name is missed");
       fields.add(Field.of(name, stringToFieldType(type)));
     }
     return fields;
@@ -114,10 +108,10 @@ public class BeamSchemaUtils {
 
   private static FieldType stringToFieldType(String string) throws SchemaParseException {
     Optional<TypeName> typeName = Enums.getIfPresent(TypeName.class, string);
-    if (typeName.isPresent()) {
-      return FieldType.of(typeName.get());
+    if (!typeName.isPresent()) {
+      throw new SchemaParseException(String.format("Provided type \"%s\" does not exist", string));
     }
-    throw new SchemaParseException(String.format("Provided type \"%s\" does not exist", string));
+    return FieldType.of(typeName.get());
   }
 
   private static String getOptionalText(JsonNode node, String key) {
@@ -125,12 +119,9 @@ public class BeamSchemaUtils {
     return jsonNode != null ? jsonNode.textValue() : null;
   }
 
-  private static String getText(JsonNode node, String key, String errorMessage)
-      throws SchemaParseException {
+  private static String getText(JsonNode node, String key, String errorMessage) {
     String text = getOptionalText(node, key);
-    if (text == null) {
-      throw new SchemaParseException(errorMessage + ": " + node);
-    }
+    checkNotNull(text, errorMessage + ": " + node);
     return text;
   }
 
