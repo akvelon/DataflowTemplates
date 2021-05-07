@@ -30,7 +30,40 @@ import org.apache.beam.sdk.schemas.Schema.Field;
 import org.apache.beam.sdk.schemas.Schema.FieldType;
 import org.apache.beam.sdk.schemas.Schema.TypeName;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.apache.beam.sdk.schemas.Schema;
+import org.apache.beam.sdk.schemas.Schema.Field;
+
+/**
+ * BeamSchemaUtils has utilities scope for convert {@link Schema} into/from various formats
+ */
 public class BeamSchemaUtils {
+
+  public static final String FIELD_NAME = "name";
+  public static final String FIELD_TYPE = "type";
+
+  /**
+   * Convert {@link Schema} into json string
+   *
+   * @param beamSchema {@link Schema}
+   * @return json string as {@link String}
+   */
+  public static String beamSchemaToJson(Schema beamSchema) {
+    ObjectMapper mapper = new ObjectMapper();
+    ArrayNode beamSchemaJsonNode = mapper.createArrayNode();
+
+    for (Field field : beamSchema.getFields()) {
+      ObjectNode fieldJsonNode = mapper.createObjectNode();
+      fieldJsonNode.put(FIELD_NAME, field.getName());
+      fieldJsonNode.put(FIELD_TYPE, field.getType().getTypeName().toString());
+
+      beamSchemaJsonNode.add(fieldJsonNode);
+    }
+
+    return beamSchemaJsonNode.toString();
+  }
 
   static JsonFactory FACTORY = new JsonFactory();
   static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
