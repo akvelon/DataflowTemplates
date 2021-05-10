@@ -15,8 +15,10 @@
  */
 package com.google.cloud.teleport.v2.utils;
 
-import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils.fromTableSchema;
+import static org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils.toTableSchema;
 
+import static org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions.checkNotNull;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.core.JsonFactory;
@@ -29,6 +31,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.LinkedList;
 import java.util.List;
+import com.google.api.services.bigquery.model.TableSchema;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.schemas.Schema.Field;
 import org.apache.beam.sdk.schemas.Schema.FieldType;
@@ -135,4 +138,18 @@ public class BeamSchemaUtils {
       super(message);
     }
   }
+  /**
+   * Convert a BigQuery {@link TableSchema} to a Beam {@link Schema}.
+   */
+  public static Schema bigQuerySchemaToBeamSchema(TableSchema bigQuerySchema) {
+    return fromTableSchema(bigQuerySchema);
+  }
+
+  /**
+   * Convert a Beam {@link Schema} to a BigQuery {@link TableSchema}.
+   */
+  public static TableSchema beamSchemaToBigQuerySchema(Schema beamSchema) {
+    return toTableSchema(beamSchema);
+  }
+
 }
