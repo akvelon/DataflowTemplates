@@ -45,6 +45,8 @@ public class BeamSchemaUtils {
 
   public static final String FIELD_NAME = "name";
   public static final String FIELD_TYPE = "type";
+  public static final String FIELD_NULLABLE = "nullable";
+
   static final JsonFactory FACTORY = new JsonFactory();
   static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
 
@@ -61,6 +63,7 @@ public class BeamSchemaUtils {
       ObjectNode fieldJsonNode = MAPPER.createObjectNode();
       fieldJsonNode.put(FIELD_NAME, field.getName());
       fieldJsonNode.put(FIELD_TYPE, field.getType().getTypeName().toString());
+      fieldJsonNode.put(FIELD_NULLABLE, field.getType().getNullable());
 
       beamSchemaJsonNode.add(fieldJsonNode);
     }
@@ -97,15 +100,24 @@ public class BeamSchemaUtils {
   private static List<Field> getFieldsfromJsonNode(JsonNode jsonNode)
       throws SchemaParseException {
     List<Field> fields = new LinkedList<>();
+    Field field;
     for (JsonNode node : jsonNode) {
       if (!node.isObject()) {
         throw new SchemaParseException("Node must be object: " + node.toString());
       }
       String type = getText(node, FIELD_TYPE, "type is missed");
       String name = getText(node, FIELD_NAME, "name is missed");
-      fields.add(Field.of(name, stringToFieldType(type)));
+      boolean nullable = getOptionalBoolean(node, FIELD_NULLABLE, false);
+      field = nullable ? Field.nullable(name, stringToFieldType(type))
+          : Field.of(name, stringToFieldType(type));
+      fields.add(field);
     }
     return fields;
+  }
+
+  private static boolean getOptionalBoolean(JsonNode node, String key, boolean defaultValue) {
+    JsonNode jsonNode = node.get(key);
+    return jsonNode != null ? jsonNode.asBoolean() : defaultValue;
   }
 
   private static FieldType stringToFieldType(String string) throws SchemaParseException {
@@ -140,6 +152,7 @@ public class BeamSchemaUtils {
       super(message);
     }
   }
+
   /**
    * Convert a BigQuery {@link TableSchema} to a Beam {@link Schema}.
    */
