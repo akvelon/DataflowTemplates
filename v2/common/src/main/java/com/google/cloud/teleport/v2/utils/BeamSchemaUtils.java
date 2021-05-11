@@ -100,15 +100,25 @@ public class BeamSchemaUtils {
   private static List<Field> getFieldsfromJsonNode(JsonNode jsonNode)
       throws SchemaParseException {
     List<Field> fields = new LinkedList<>();
+    Field field;
     for (JsonNode node : jsonNode) {
       if (!node.isObject()) {
         throw new SchemaParseException("Node must be object: " + node.toString());
       }
       String type = getText(node, FIELD_TYPE, "type is missed");
       String name = getText(node, FIELD_NAME, "name is missed");
-      fields.add(Field.of(name, stringToFieldType(type)));
+      boolean nullable = getOptionalBoolean(node, FIELD_NULLABLE, false);
+      field = nullable ? Field.nullable(name, stringToFieldType(type))
+          : Field.of(name, stringToFieldType(type));
+      fields.add(field);
     }
     return fields;
+  }
+
+
+  private static boolean getOptionalBoolean(JsonNode node, String key, boolean defaultValue) {
+    JsonNode jsonNode = node.get(key);
+    return jsonNode != null ? jsonNode.asBoolean() : defaultValue;
   }
 
   private static FieldType stringToFieldType(String string) throws SchemaParseException {
@@ -142,7 +152,9 @@ public class BeamSchemaUtils {
     public SchemaParseException(String message) {
       super(message);
     }
+
   }
+
   /**
    * Convert a BigQuery {@link TableSchema} to a Beam {@link Schema}.
    */
