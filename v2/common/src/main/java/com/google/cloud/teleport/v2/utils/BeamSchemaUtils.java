@@ -46,6 +46,7 @@ public class BeamSchemaUtils {
   public static final String FIELD_NAME = "name";
   public static final String FIELD_TYPE = "type";
   public static final String FIELD_NULLABLE = "nullable";
+  private static final boolean DEFAULT_NULLABLE_VALUE = false;
 
   static final JsonFactory FACTORY = new JsonFactory();
   static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
@@ -100,7 +101,6 @@ public class BeamSchemaUtils {
   private static List<Field> getFieldsfromJsonNode(JsonNode jsonNode)
       throws SchemaParseException {
     List<Field> fields = new LinkedList<>();
-    Field field;
     for (JsonNode node : jsonNode) {
       if (!node.isObject()) {
         throw new SchemaParseException("Node must be object: " + node.toString());
@@ -108,7 +108,7 @@ public class BeamSchemaUtils {
       String type = getText(node, FIELD_TYPE, "type is missed");
       String name = getText(node, FIELD_NAME, "name is missed");
       boolean nullable = getOptionalBoolean(node, FIELD_NULLABLE, false);
-      field = nullable ? Field.nullable(name, stringToFieldType(type))
+      Field field = nullable ? Field.nullable(name, stringToFieldType(type))
           : Field.of(name, stringToFieldType(type));
       fields.add(field);
     }
