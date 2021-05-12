@@ -107,7 +107,7 @@ public class BeamSchemaUtils {
       }
       String type = getText(node, FIELD_TYPE, "type is missed");
       String name = getText(node, FIELD_NAME, "name is missed");
-      boolean nullable = getOptionalBoolean(node, FIELD_NULLABLE, false);
+      boolean nullable = getOptionalBoolean(node, FIELD_NULLABLE, DEFAULT_NULLABLE_VALUE);
       Field field = nullable ? Field.nullable(name, stringToFieldType(type))
           : Field.of(name, stringToFieldType(type));
       fields.add(field);
@@ -168,5 +168,4 @@ public class BeamSchemaUtils {
   public static TableSchema beamSchemaToBigQuerySchema(Schema beamSchema) {
     return toTableSchema(beamSchema);
   }
-
 }
