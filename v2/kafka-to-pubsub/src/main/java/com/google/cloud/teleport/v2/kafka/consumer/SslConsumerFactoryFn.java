@@ -17,11 +17,16 @@
 package com.google.cloud.teleport.v2.kafka.consumer;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -64,7 +69,9 @@ public class SslConsumerFactoryFn
       outputKeyStoreFilePath = KEYSTORE_LOCAL_PATH;
       getGcsFileAsLocal(bucket, trustStorePath, outputTrustStoreFilePath);
       getGcsFileAsLocal(bucket, keyStorePath, outputKeyStoreFilePath);
-    } catch (IOException e) {
+      validateCertificate(outputKeyStoreFilePath, keyStorePassword);
+      validateCertificate(outputTrustStoreFilePath, trustStorePassword);
+    } catch (IOException | KeyStoreException | CertificateException | NoSuchAlgorithmException e) {
       LOG.error("Failed to retrieve data for SSL", e);
       return new KafkaConsumer<>(config);
     }
@@ -119,5 +126,11 @@ public class SslConsumerFactoryFn
       }
     }
     throw new IOException("Failed to write file");
+  }
+
+  private static void validateCertificate(String storePath, String password)
+      throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
+    KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+    keystore.load(new FileInputStream(storePath), password.toCharArray());
   }
 }
