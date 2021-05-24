@@ -30,6 +30,8 @@ import java.security.cert.CertificateException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.kafka.clients.CommonClientConfigs;
@@ -44,8 +46,11 @@ import org.slf4j.LoggerFactory;
 public class SslConsumerFactoryFn
     implements SerializableFunction<Map<String, Object>, Consumer<byte[], byte[]>> {
   private final Map<String, String> sslConfig;
-  private static final String TRUSTSTORE_LOCAL_PATH = "/tmp/kafka.truststore.jks";
-  private static final String KEYSTORE_LOCAL_PATH = "/tmp/kafka.keystore.jks";
+  private static final String TRUSTSTORE_LOCAL_PATH = "/tmp/kafka.truststore";
+  private static final String KEYSTORE_LOCAL_PATH = "/tmp/kafka.keystore";
+  private static final Map<String, String> KEY_STORE_EXTENSION = Stream
+      .of(new String[][]{{"jks", "jks"}, {"pkcs12", "p12"},})
+      .collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
   /* Logger for class.*/
   private static final Logger LOG = LoggerFactory.getLogger(SslConsumerFactoryFn.class);
@@ -62,17 +67,25 @@ public class SslConsumerFactoryFn
     String trustStorePassword = sslConfig.get(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG);
     String keyStorePassword = sslConfig.get(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG);
     String keyPassword = sslConfig.get(SslConfigs.SSL_KEY_PASSWORD_CONFIG);
+    String trustStoreType = sslConfig.get(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG).toLowerCase();
+    String keyStoreType = sslConfig.get(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG).toLowerCase();
     String outputTrustStoreFilePath;
     String outputKeyStoreFilePath;
     try {
-      outputTrustStoreFilePath = TRUSTSTORE_LOCAL_PATH;
-      outputKeyStoreFilePath = KEYSTORE_LOCAL_PATH;
+      outputTrustStoreFilePath =
+          TRUSTSTORE_LOCAL_PATH + '.' + KEY_STORE_EXTENSION.get(trustStoreType);
+      outputKeyStoreFilePath = KEYSTORE_LOCAL_PATH + '.' + KEY_STORE_EXTENSION.get(keyStoreType);
       getGcsFileAsLocal(bucket, trustStorePath, outputTrustStoreFilePath);
       getGcsFileAsLocal(bucket, keyStorePath, outputKeyStoreFilePath);
-      validateCertificate(outputKeyStoreFilePath, keyStorePassword);
-      validateCertificate(outputTrustStoreFilePath, trustStorePassword);
-    } catch (IOException | KeyStoreException | CertificateException | NoSuchAlgorithmException e) {
+    } catch (IOException e) {
       LOG.error("Failed to retrieve data for SSL", e);
+      return new KafkaConsumer<>(config);
+    }
+    try {
+      validateCertificate(outputKeyStoreFilePath, keyStorePassword, keyStoreType);
+      validateCertificate(outputTrustStoreFilePath, trustStorePassword, trustStoreType);
+    } catch (IOException | KeyStoreException | CertificateException | NoSuchAlgorithmException e) {
+      LOG.error("Certificate validation failed", e);
       return new KafkaConsumer<>(config);
     }
 
@@ -128,9 +141,23 @@ public class SslConsumerFactoryFn
     throw new IOException("Failed to write file");
   }
 
-  private static void validateCertificate(String storePath, String password)
+  /**
+   Validate if the given keystore format is supported and loads a keystore to check
+   for the format and validity of the password.
+
+   @param storePath path to keystore file.
+   @param password password from keystore
+   @param keyStoreType type of keystore
+   @throws KeyStoreException if specified keyStoreType is not supported.
+   @throws IOException if there is an I/O or format problem with the keystore data or
+   if the given password was incorrect.
+   @throws CertificateException if any of the certificates in the keystore could not be loaded.
+   @throws NoSuchAlgorithmException if the algorithm used to check the integrity of
+   the keystore cannot be found.
+   */
+  private static void validateCertificate(String storePath, String password, String keyStoreType)
       throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
-    KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
+    KeyStore keystore = KeyStore.getInstance(keyStoreType);
     keystore.load(new FileInputStream(storePath), password.toCharArray());
   }
 }
