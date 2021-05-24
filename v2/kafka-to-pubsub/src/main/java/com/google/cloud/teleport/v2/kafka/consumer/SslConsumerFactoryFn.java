@@ -27,11 +27,10 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.transforms.SerializableFunction;
 import org.apache.kafka.clients.CommonClientConfigs;
@@ -46,17 +45,18 @@ import org.slf4j.LoggerFactory;
 public class SslConsumerFactoryFn
     implements SerializableFunction<Map<String, Object>, Consumer<byte[], byte[]>> {
   private final Map<String, String> sslConfig;
+  private final Map<String, String> keyStoreExtension;
   private static final String TRUSTSTORE_LOCAL_PATH = "/tmp/kafka.truststore";
   private static final String KEYSTORE_LOCAL_PATH = "/tmp/kafka.keystore";
-  private static final Map<String, String> KEY_STORE_EXTENSION = Stream
-      .of(new String[][]{{"jks", "jks"}, {"pkcs12", "p12"},})
-      .collect(Collectors.toMap(data -> data[0], data -> data[1]));
 
   /* Logger for class.*/
   private static final Logger LOG = LoggerFactory.getLogger(SslConsumerFactoryFn.class);
 
   public SslConsumerFactoryFn(Map<String, String> sslConfig) {
     this.sslConfig = sslConfig;
+    keyStoreExtension = new HashMap<>();
+    keyStoreExtension.put("jks", "jks");
+    keyStoreExtension.put("pkcs12", "p12");
   }
 
   @Override
@@ -73,8 +73,8 @@ public class SslConsumerFactoryFn
     String outputKeyStoreFilePath;
     try {
       outputTrustStoreFilePath =
-          TRUSTSTORE_LOCAL_PATH + '.' + KEY_STORE_EXTENSION.get(trustStoreType);
-      outputKeyStoreFilePath = KEYSTORE_LOCAL_PATH + '.' + KEY_STORE_EXTENSION.get(keyStoreType);
+          TRUSTSTORE_LOCAL_PATH + '.' + this.keyStoreExtension.get(trustStoreType);
+      outputKeyStoreFilePath = KEYSTORE_LOCAL_PATH + '.' + this.keyStoreExtension.get(keyStoreType);
       getGcsFileAsLocal(bucket, trustStorePath, outputTrustStoreFilePath);
       getGcsFileAsLocal(bucket, keyStorePath, outputKeyStoreFilePath);
     } catch (IOException e) {
