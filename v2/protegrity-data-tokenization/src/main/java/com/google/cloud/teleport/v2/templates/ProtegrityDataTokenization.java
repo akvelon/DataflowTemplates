@@ -180,6 +180,9 @@ public class ProtegrityDataTokenization {
         case AVRO:
           records = pipeline.apply(read.avro());
           break;
+        case PARQUET:
+          records = pipeline.apply(read.parquet());
+          break;
         default:
           throw new IllegalStateException(
               "No valid format for input data is provided. Please, choose JSON, CSV or AVRO.");

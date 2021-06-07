@@ -6,7 +6,6 @@ import static com.google.cloud.teleport.v2.transforms.BeamRowConverters.TRANSFOR
 import static org.apache.beam.vendor.guava.v26_0_jre.com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.auto.value.AutoValue;
-import com.google.cloud.teleport.v2.coders.FailsafeElementCoder;
 import com.google.cloud.teleport.v2.options.CsvOptions;
 import com.google.cloud.teleport.v2.options.GcsCommonOptions;
 import com.google.cloud.teleport.v2.options.GcsCommonOptions.ReadOptions;
@@ -19,16 +18,14 @@ import com.google.cloud.teleport.v2.utils.FailsafeElementToStringCsvSerializable
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.AvroCoder;
-import org.apache.beam.sdk.coders.NullableCoder;
 import org.apache.beam.sdk.coders.RowCoder;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryHelpers;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryUtils;
+import org.apache.beam.sdk.io.parquet.ParquetIO;
 import org.apache.beam.sdk.schemas.Schema;
 import org.apache.beam.sdk.schemas.utils.AvroUtils;
-import org.apache.beam.sdk.transforms.JsonToRow;
 import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ToJson;
@@ -139,6 +136,13 @@ public class GoogleCloudStorageIO {
           setInputOptions(getInputOptions()).setBeamSchema(getBeamSchema()).build();
 
     }
+
+    public ReadParquet parquet() {
+      return new AutoValue_GoogleCloudStorageIO_ReadParquet.Builder().
+          setInputOptions(getInputOptions()).setBeamSchema(getBeamSchema()).build();
+    }
+
+
 
     @AutoValue.Builder
     abstract static class Builder {
@@ -584,31 +588,56 @@ public class GoogleCloudStorageIO {
   }
 
   /**
-   * The {@link JsonToBeamRow} converts jsons string to beam rows. TODO @MikhailMedvedevAkvelon
-   * remove it after refactoring
+   * A {@link PTransform} that reads Parquet files from GCS and returns PCollection of Row.
    */
-  public static class JsonToBeamRow extends PTransform<PCollection<String>, PCollection<Row>> {
+  @AutoValue
+  abstract static class ReadParquet extends PTransform<PBegin, PCollection<Row>> {
 
-    /**
-     * String/String Coder for FailsafeElement.
-     */
-    public static final FailsafeElementCoder<String, String> FAILSAFE_ELEMENT_CODER =
-        FailsafeElementCoder.of(
-            NullableCoder.of(StringUtf8Coder.of()), NullableCoder.of(StringUtf8Coder.of()));
 
-    private final Schema schema;
+    abstract GcsCommonOptions.ReadOptions getInputOptions();
 
-    public JsonToBeamRow(Schema schema) {
-      this.schema = schema;
-    }
+    abstract Schema getBeamSchema();
+
 
     @Override
-    public PCollection<Row> expand(PCollection<String> jsons) {
-      JsonToRow.ParseResult rows = jsons
-          .apply("JsonToRow",
-              JsonToRow.withExceptionReporting(schema).withExtendedErrorInfo());
+    public PCollection<Row> expand(PBegin input) {
 
-      return rows.getResults().setRowSchema(schema);
+      org.apache.avro.Schema avroSchema = AvroUtils.toAvroSchema(getBeamSchema());
+
+      return input
+          .apply(
+              "ReadParquetFiles",
+              ParquetIO
+                  .read(avroSchema)
+                  .from(getInputOptions()
+                      .getInputGcsFilePattern())
+          )
+          .apply(
+              "GenericRecordToRow",
+              MapElements.into(TypeDescriptor.of(Row.class))
+                  .via(AvroUtils.getGenericRecordToRowFunction(getBeamSchema()))
+          )
+          .setCoder(RowCoder.of(getBeamSchema()));
+
+
+    }
+
+    @AutoValue.Builder
+    abstract static class Builder {
+
+      abstract GoogleCloudStorageIO.ReadParquet.Builder setInputOptions(
+          GcsCommonOptions.ReadOptions inputOptions);
+
+      public abstract ReadParquet.Builder setBeamSchema(Schema beamSchema);
+
+
+      abstract ReadParquet autoBuild();
+
+      public ReadParquet build() {
+        return autoBuild();
+      }
+
+
     }
   }
 

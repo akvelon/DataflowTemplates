@@ -21,5 +21,6 @@ package com.google.cloud.teleport.v2.utils;
 public enum IoFormats {
   JSON,
   CSV,
-  AVRO
+  AVRO,
+  PARQUET;
 }
